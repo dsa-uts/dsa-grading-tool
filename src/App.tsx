@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
 import Checkbox from '@mui/material/Checkbox';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
@@ -219,6 +220,37 @@ function App() {
     };
     reader.readAsArrayBuffer(file);
   }
+
+  // 採点結果をエクスポート
+  const handleExportResults = () => {
+    // エクスポートするデータの作成
+    const exportData = students.map(student => ({
+      '学籍番号': student.studentId,
+      '氏名': student.name,
+      '得点': student.score,
+      '講評': student.feedback.trim()
+    }));
+
+    // ワークブックとワークシートの作成
+    const workBook = XLSX.utils.book_new();
+    const workSheet = XLSX.utils.json_to_sheet(exportData);
+
+    // 列幅の設定
+    const columnWidths = [
+      { wch: 10 }, // 学籍番号
+      { wch: 15 }, // 氏名
+      { wch: 8 }, // 得点
+      { wch: 50 } // 講評
+    ];
+    workSheet['!cols'] = columnWidths;
+
+    // ワークブックにワークシートを追加
+    XLSX.utils.book_append_sheet(workBook, workSheet, '採点結果');
+
+    // ファイルとして保存
+    const fileName = `採点結果_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workBook, fileName);
+  };
 
   return (
     <div className="App">
@@ -431,6 +463,18 @@ function App() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Box sx={{ display: 'flex', gap: 2, mb: 2}}>
+        <Button
+          variant="contained"
+          color="success"
+          startIcon={<DownloadIcon />}
+          onClick={handleExportResults}
+          disabled={students.length === 0}
+        >
+          採点結果をエクスポート(.xlsx)
+        </Button>
+      </Box>
     </div>
   );
 }
