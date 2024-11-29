@@ -25,6 +25,7 @@ import Checkbox from '@mui/material/Checkbox';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
+import Autocomplete from '@mui/material/Autocomplete';
 
 import * as XLSX from 'xlsx';
 
@@ -319,20 +320,27 @@ function App() {
         </Box>
 
         <Box sx={{ mb: 2 }}>
-          <FormControl fullWidth>
-            <InputLabel>学生を選択</InputLabel>
-            <Select
-              value={selectedStudent}
-              onChange={(e) => setSelectedStudent(e.target.value)}
-              label="select-student"
-            >
-              {students.map((student) => (
-                <MenuItem key={student.id} value={student.id}>
-                  {student.name} ({student.studentId})
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Autocomplete
+            // 現在選択されている値を指定
+            value={students.find(student => student.id === selectedStudent) || null}
+            // 選択値が変更されたときの処理
+            onChange={(_, newValue) => setSelectedStudent(newValue?.id || '')}
+            // 選択肢のリストを指定
+            options={students}
+            // 各選択肢の表示テキストをカスタマイズ
+            getOptionLabel={(option) => `${option.name} (${option.studentId})`}
+            // テキストフィールドの見た目をカスタマイズ
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="学生を選択"
+                variant="outlined"
+              />
+            )}
+            // 値の比較方法をカスタマイズ
+            // 学生オブジェクトのIDで比較
+            isOptionEqualToValue={(option, value) => option.id === value.id}
+          />
         </Box>
 
         <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
