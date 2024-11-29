@@ -1,13 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   TextField,
-  Select,
-  MenuItem,
   Button,
   Box,
   Typography,
-  FormControl,
-  InputLabel,
   Tooltip
 } from '@mui/material';
 import {
@@ -300,6 +296,39 @@ function App() {
     reader.readAsText(file);
   };
 
+  // 減点項目リストをインポートする
+  const handleImportDeductions = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string);
+
+        if (!Array.isArray(data)) {
+          alert('無効なJSONファイルです。配列形式である必要があります。');
+          return;
+        }
+
+        const newDeductions: DeductionItem[] = data.map(item => ({
+          id: `deduction-${Date.now()}-${Math.random()}`,
+          description: item.description,
+          points: item.point,
+          feedback: item.feedback
+        }));
+
+        const uploadDeductions = [...deductionItems, ...newDeductions];
+        setDeductionItems(uploadDeductions);
+        localStorage.setItem('deductionItems', JSON.stringify(uploadDeductions));
+      } catch (error) {
+        console.error('Invalid JSON file', error);
+        alert('無効なJSONファイルです');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="App">
       <header className="App-header">
@@ -453,52 +482,69 @@ function App() {
 
       {/* 選択された学生の採点セクション */}
       {selectedStudent && (
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="h5" gutterBottom>
-            Current Score: {students.find(s => s.id === selectedStudent)?.score.toFixed(2)} / {totalPoints.toFixed(2)}
-          </Typography>
-
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setOpenDeductionDialog(true)}
-            sx={{ mb: 2 }}
-          >
-            減点項目を追加
-          </Button>
-
-          <List>
-            {deductionItems.map((item) => (
-              <ListItem key={item.id} dense>
-                <Checkbox
-                  edge="start"
-                  checked={students.find(s => s.id === selectedStudent)?.deductions.includes(item.id) ?? false}
-                  onChange={() => handleDeductionToggle(item.id)}
+        <>
+          <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setOpenDeductionDialog(true)}
+            >
+              減点項目を追加
+            </Button>
+            <Tooltip title="減点項目のリストをJSONファイルからインポートします。{description, point, feedback}の3つのキーを持つ配列である必要があります。">
+              <Button
+                variant="contained"
+                component="label"
+                color="secondary"
+                startIcon={<UploadIcon />}
+              >
+                減点項目リストをインポート
+                <input
+                  type="file"
+                  accept=".json"
+                  hidden
+                  onChange={handleImportDeductions}
                 />
-                <ListItemText
-                  primary={`${item.description} (-${item.points} points)`}
-                />
-              </ListItem>
-            ))}
-          </List>
+              </Button>
+            </Tooltip>
+          </Box>
+          <Box sx={{ mt: 4 }}>
+            <Typography variant="h5" gutterBottom>
+              Current Score: {students.find(s => s.id === selectedStudent)?.score.toFixed(2)} / {totalPoints.toFixed(2)}
+            </Typography>
+            <List>
+              {deductionItems.map((item) => (
+                <ListItem key={item.id} dense>
+                  <Checkbox
+                    edge="start"
+                    checked={students.find(s => s.id === selectedStudent)?.deductions.includes(item.id) ?? false}
+                    onChange={() => handleDeductionToggle(item.id)}
+                  />
+                  <ListItemText
+                    primary={`${item.description} (-${item.points} points)`}
+                  />
+                </ListItem>
+              ))}
+            </List>
 
-          <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-            Feedback(generated):
-          </Typography>
-          <TextField
-            multiline
-            rows={4}
-            value={students.find(s => s.id === selectedStudent)?.feedback ?? ''}
-            fullWidth
-            variant="outlined"
-            disabled
-            sx={{
-              "& .MuiInputBase-input.Mui-disabled": {
-                WebkitTextFillColor: "rgba(0, 0, 0, 1)"
-              }
-            }}
-          />
-        </Box>
+            <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+              Feedback(generated):
+            </Typography>
+            <TextField
+              multiline
+              rows={4}
+              value={students.find(s => s.id === selectedStudent)?.feedback ?? ''}
+              fullWidth
+              variant="outlined"
+              disabled
+              sx={{
+                "& .MuiInputBase-input.Mui-disabled": {
+                  WebkitTextFillColor: "rgba(0, 0, 0, 1)"
+                }
+              }}
+            />
+          </Box>
+        </>
       )}
 
       {/* 減点項目追加ダイアログ */}
