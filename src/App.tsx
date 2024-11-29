@@ -19,6 +19,8 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
+import SaveIcon from '@mui/icons-material/Save';
+import UploadIcon from '@mui/icons-material/Upload';
 import Checkbox from '@mui/material/Checkbox';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
@@ -252,6 +254,51 @@ function App() {
     XLSX.writeFile(workBook, fileName);
   };
 
+  // このシステムの内部データ(deductionItems, students)を保存
+  const handleSaveData = () => {
+    const saveData = {
+      deductionItems,
+      students
+    };
+
+    const blob = new Blob([JSON.stringify(saveData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `grading-data_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  // このシステムの内部データ(deductionItems, students)を読み込む
+  const handleLoadData = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string);
+
+        if (data.deductionItems && Array.isArray(data.deductionItems)) {
+          setDeductionItems(data.deductionItems);
+          localStorage.setItem('deductionItems', JSON.stringify(data.deductionItems));
+        }
+
+        if (data.students && Array.isArray(data.students)) {
+          setStudents(data.students);
+          localStorage.setItem('students', JSON.stringify(data.students));
+        }
+      } catch (error) {
+        console.error('Invalid JSON file', error);
+        alert('無効なJSONファイルです');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="App">
       <header className="App-header">
@@ -304,6 +351,10 @@ function App() {
           >
             選択中の学生を削除
           </Button>
+        </Box>
+
+        {/* インポート関連のボタングループ */}
+        <Box sx={{ display: 'flex', gap: 1 }}>
           <Tooltip title="名簿とは、1列目に学籍番号、2列目に名前が記載されたテーブルを指します" arrow>
             <Button
               variant="contained"
@@ -316,6 +367,33 @@ function App() {
                 accept=".xlsx,.xls,.csv"
                 hidden
                 onChange={handleFileUpload}
+              />
+            </Button>
+          </Tooltip>
+          <Tooltip title="採点途中までのデータをセーブします" arrow>
+            <Button
+              variant="contained"
+              color="secondary"
+              startIcon={<SaveIcon />}
+              onClick={handleSaveData}
+              disabled={students.length === 0 && deductionItems.length === 0}
+            >
+              Save Data...
+            </Button>
+          </Tooltip>
+          <Tooltip title="セーブした採点途中のデータをロードします" arrow>
+            <Button
+              variant="contained"
+              component="label"
+              color="secondary"
+              startIcon={<UploadIcon />}
+            >
+              Load Data...
+              <input
+                type="file"
+                accept=".json"
+                hidden
+                onChange={handleLoadData}
               />
             </Button>
           </Tooltip>
@@ -464,7 +542,8 @@ function App() {
         </DialogActions>
       </Dialog>
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 2}}>
+      {/* エクスポート関連のボタングループ */}
+      <Box sx={{ display: 'flex', gap: 1 }}>
         <Button
           variant="contained"
           color="success"
