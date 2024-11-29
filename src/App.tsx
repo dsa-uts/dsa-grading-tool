@@ -7,7 +7,8 @@ import {
   Box,
   Typography,
   FormControl,
-  InputLabel
+  InputLabel,
+  Tooltip
 } from '@mui/material';
 import {
   Dialog,
@@ -21,6 +22,8 @@ import Checkbox from '@mui/material/Checkbox';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
+
+import * as XLSX from 'xlsx';
 
 interface DeductionItem {
   id: string;
@@ -184,6 +187,39 @@ function App() {
     localStorage.setItem('students', JSON.stringify(newStudents));
   }
 
+  // Excelファイルを読み込む
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target?.result as ArrayBuffer);;
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][];
+
+      console.log(jsonData);
+
+      // 1行目をスキップしたい場合は slice(1) を追加
+      const newStudents = jsonData.map((row) => ({
+        id: `student-${Date.now()}-${Math.random()}`,
+        studentId: row[0]?.toString() || '',
+        name: row[1]?.toString() || '',
+        deductions: [],
+        score: totalPoints,
+        feedback: ''
+      }));
+
+      // 既存の学生リストと結合
+      const updatedStudents = [...students, ...newStudents];
+      setStudents(updatedStudents);
+      localStorage.setItem('students', JSON.stringify(updatedStudents));
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
   return (
     <div className="App">
       <header className="App-header">
@@ -236,6 +272,21 @@ function App() {
           >
             選択中の学生を削除
           </Button>
+          <Tooltip title="名簿とは、1列目に学籍番号、2列目に名前が記載されたテーブルを指します" arrow>
+            <Button
+              variant="contained"
+              component="label"
+              color="secondary"
+            >
+              名簿をインポート(.xlsx, .xls, .csv)
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                hidden
+                onChange={handleFileUpload}
+              />
+            </Button>
+          </Tooltip>
         </Box>
 
         <Typography variant="body2" color="text.secondary">
@@ -323,7 +374,7 @@ function App() {
             fullWidth
             variant="outlined"
             disabled
-            sx={{ 
+            sx={{
               "& .MuiInputBase-input.Mui-disabled": {
                 WebkitTextFillColor: "rgba(0, 0, 0, 1)"
               }
