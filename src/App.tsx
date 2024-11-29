@@ -17,6 +17,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
 import SaveIcon from '@mui/icons-material/Save';
 import UploadIcon from '@mui/icons-material/Upload';
+import EditIcon from '@mui/icons-material/Edit';
+import IconButton from '@mui/material/IconButton';
 import Checkbox from '@mui/material/Checkbox';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
@@ -61,6 +63,9 @@ function App() {
     points: 0,
     feedback: ''
   });
+
+  // 減点項目編集用のstate追加
+  const [editingDeduction, setEditingDeduction] = useState<DeductionItem | null>(null);
 
   // 学生追加用ダイアログを開く
   const handleOpenStudentDialog = () => {
@@ -118,21 +123,100 @@ function App() {
     localStorage.setItem('students', JSON.stringify(newStudents));
   };
 
-  // 減点項目を追加
-  const handleAddDeduction = () => {
-    if (!newDeduction.description || !newDeduction.points) return;
+  // 減点項目の編集
+  const handleEditDeduction = (item: DeductionItem) => {
+    setEditingDeduction(item);
+    setNewDeduction({
+      description: item.description,
+      points: item.points,
+      feedback: item.feedback
+    });
+    setOpenDeductionDialog(true);
+  };
 
-    const newItem: DeductionItem = {
-      id: `deduction-${Date.now()}`,
-      description: newDeduction.description,
-      points: newDeduction.points,
-      feedback: newDeduction.feedback
-    };
-
-    const newDeductions = [...deductionItems, newItem];
+  // 減点項目の削除
+  const handleDeleteDeduction = (deductionId: string) => {
+    const newDeductions = deductionItems.filter(item => item.id !== deductionId);
     setDeductionItems(newDeductions);
     localStorage.setItem('deductionItems', JSON.stringify(newDeductions));
+
+    // 学生の採点項目からも削除
+    const updatedStudents = students.map(student => ({
+      ...student,
+      deductions: student.deductions.filter(id => id !== deductionId)
+    }));
+    setStudents(updatedStudents);
+    localStorage.setItem('students', JSON.stringify(updatedStudents));
+  };
+
+  // 減点項目を追加または更新
+  const handleAddOrUpdateDeduction = () => {
+    if (!newDeduction.description || !newDeduction.points) return;
+
+    if (editingDeduction) {
+      // 編集モード
+      const updatedDeductions = deductionItems.map(item =>
+        item.id === editingDeduction.id
+          ? {
+            ...item,
+            description: newDeduction.description,
+            points: newDeduction.points,
+            feedback: newDeduction.feedback
+          }
+          : item
+      );
+      setDeductionItems(updatedDeductions);
+      localStorage.setItem('deductionItems', JSON.stringify(updatedDeductions));
+
+      // 学生のscoreとfeedbackの更新
+      const updatedStudents = [];
+      for (const student of students) {
+        let newFeedback = '';
+        updatedDeductions.forEach(deduction => {
+          if (student.deductions.includes(deduction.id)) {
+            newFeedback += `${deduction.feedback} (-${deduction.points} points)\n`;
+          }
+        });
+        let newScore = totalPoints;
+        updatedDeductions.forEach(deduction => {
+          if (student.deductions.includes(deduction.id)) {
+            newScore -= deduction.points;
+          }
+        });
+        updatedStudents.push({
+          ...student,
+          feedback: newFeedback,
+          score: newScore
+        });
+      }
+      setStudents(updatedStudents);
+      localStorage.setItem('students', JSON.stringify(updatedStudents));
+    } else {
+      // 新規追加モード
+      const newItem: DeductionItem = {
+        id: `deduction-${Date.now()}`,
+        description: newDeduction.description,
+        points: newDeduction.points,
+        feedback: newDeduction.feedback
+      };
+      const newDeductions = [...deductionItems, newItem];
+      setDeductionItems(newDeductions);
+      localStorage.setItem('deductionItems', JSON.stringify(newDeductions));
+    }
+
     setOpenDeductionDialog(false);
+    setEditingDeduction(null);
+  };
+
+  // 減点項目のダイアログを閉じる
+  const handleCloseDeductionDialog = () => {
+    setOpenDeductionDialog(false);
+    setEditingDeduction(null);
+    setNewDeduction({
+      description: '',
+      points: 0,
+      feedback: ''
+    });
   };
 
   // 減点項目のチェック状態を変更
@@ -514,7 +598,20 @@ function App() {
             </Typography>
             <List>
               {deductionItems.map((item) => (
-                <ListItem key={item.id} dense>
+                <ListItem
+                  key={item.id}
+                  dense
+                  secondaryAction={
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <IconButton edge="end" onClick={() => handleEditDeduction(item)}>
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton edge="end" onClick={() => handleDeleteDeduction(item.id)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </Box>
+                  }
+                >
                   <Checkbox
                     edge="start"
                     checked={students.find(s => s.id === selectedStudent)?.deductions.includes(item.id) ?? false}
@@ -548,8 +645,10 @@ function App() {
       )}
 
       {/* 減点項目追加ダイアログ */}
-      <Dialog open={openDeductionDialog} onClose={() => setOpenDeductionDialog(false)}>
-        <DialogTitle>減点項目を追加</DialogTitle>
+      <Dialog open={openDeductionDialog} onClose={handleCloseDeductionDialog}>
+        <DialogTitle>
+          {editingDeduction ? '減点項目を編集' : '減点項目を追加'}
+        </DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
             <TextField
@@ -585,13 +684,13 @@ function App() {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDeductionDialog(false)}>キャンセル</Button>
+          <Button onClick={handleCloseDeductionDialog}>キャンセル</Button>
           <Button
-            onClick={handleAddDeduction}
+            onClick={handleAddOrUpdateDeduction}
             variant="contained"
             disabled={!newDeduction.description || !newDeduction.points || !newDeduction.feedback}
           >
-            追加
+            {editingDeduction ? '更新' : '追加'}
           </Button>
         </DialogActions>
       </Dialog>
