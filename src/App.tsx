@@ -413,6 +413,26 @@ function App() {
     reader.readAsText(file);
   };
 
+  // 減点項目リスト(JSON)をエクスポート
+  const handleExportDeductions = () => {
+    // idは抜いてエクスポート
+    const exportData = deductionItems.map(item => ({
+      description: item.description,
+      points: item.points,
+      feedback: item.feedback
+    }));
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `deduction-items_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="App">
       <header className="App-header">
@@ -589,6 +609,16 @@ function App() {
                   hidden
                   onChange={handleImportDeductions}
                 />
+              </Button>
+            </Tooltip>
+            <Tooltip title="減点項目のリストをJSONファイルとしてエクスポートします。">
+              <Button
+                variant="contained"
+                color="secondary"
+                startIcon={<DownloadIcon />}
+                onClick={handleExportDeductions}
+              >
+                減点項目リストをエクスポート
               </Button>
             </Tooltip>
           </Box>
