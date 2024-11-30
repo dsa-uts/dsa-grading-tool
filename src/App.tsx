@@ -68,6 +68,24 @@ function App() {
   // 減点項目編集用のstate追加
   const [editingDeduction, setEditingDeduction] = useState<DeductionItem | null>(null);
 
+  // データ削除用の確認ダイアログの状態
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+
+  // データを全て削除する関数
+  const handleDeleteAllData = () => {
+    // LocalStorageからデータを削除
+    localStorage.removeItem('deductionItems');
+    localStorage.removeItem('students');
+
+    // stateを空にする
+    setDeductionItems([]);
+    setStudents([]);
+    setSelectedStudent('');
+
+    // ダイアログを閉じる
+    setOpenDeleteDialog(false);
+  };
+
   // スコアを計算する関数
   const calculateScore = (student: Student) => {
     const deductionTotal = student.deductions.reduce((sum, id) => {
@@ -566,6 +584,17 @@ function App() {
               />
             </Button>
           </Tooltip>
+          <Tooltip title="現在のデータを全て削除します" arrow>
+            <Button
+              variant="contained"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={() => setOpenDeleteDialog(true)}
+              disabled={students.length === 0 && deductionItems.length === 0}
+            >
+              Delete Data...
+            </Button>
+          </Tooltip>
         </Box>
 
         <Typography variant="body2" color="text.secondary">
@@ -781,6 +810,33 @@ function App() {
             disabled={!newDeduction.description || !newDeduction.points || !newDeduction.feedback}
           >
             {editingDeduction ? '更新' : '追加'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* データ削除用の確認ダイアログ */}
+      <Dialog
+        open={openDeleteDialog}
+        onClose={() => setOpenDeleteDialog(false)}
+      >
+        <DialogTitle>データの削除確認</DialogTitle>
+        <DialogContent>
+          <Typography>
+            現在のデータを全て削除します。よろしいですか？
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setOpenDeleteDialog(false)}
+          >
+            キャンセル
+          </Button>
+          <Button
+            onClick={handleDeleteAllData}
+            variant="contained"
+            color="error"
+          >
+            削除
           </Button>
         </DialogActions>
       </Dialog>
