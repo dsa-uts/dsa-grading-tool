@@ -4,7 +4,8 @@ import {
   Button,
   Box,
   Typography,
-  Tooltip
+  Tooltip,
+  Skeleton
 } from '@mui/material';
 import {
   Dialog,
@@ -39,8 +40,6 @@ interface Student {
   studentId: string;
   name: string;
   deductions: string[];
-  score: number;
-  feedback: string;
   additionalDeduction: number; // 追加の減点(手動で指定)
   additionalNotes: string; // 追加の講評(手動で設定)
 }
@@ -68,6 +67,55 @@ function App() {
 
   // 減点項目編集用のstate追加
   const [editingDeduction, setEditingDeduction] = useState<DeductionItem | null>(null);
+
+  // スコアを計算する関数
+  const calculateScore = (student: Student) => {
+    const deductionTotal = student.deductions.reduce((sum, id) => {
+      const deduction = deductionItems.find(d => d.id === id);
+      return sum + (deduction?.points || 0);
+    }, 0);
+    return totalPoints - deductionTotal - student.additionalDeduction;
+  };
+
+  const displayGeneratedFeedback = (student: Student) => {
+    let feedback = '';
+    student.deductions.forEach(id => {
+      const deduction = deductionItems.find(d => d.id === id);
+      if (deduction) {
+        feedback += `${deduction.feedback} (-${deduction.points} points)\n`;
+      }
+    });
+    return feedback;
+  }
+
+  // スコア表示用のコンポーネント
+  const ScoreDisplay = ({ student }: { student: Student }) => {
+    const score = calculateScore(student);
+    const lessThanZero = score < 0;
+
+    return (
+      <Typography
+        variant="h5"
+        component="span"
+        sx={{
+          color: lessThanZero ? 'error.main' : 'inherit',
+          cursor: lessThanZero ? 'help' : 'inherit'
+        }}
+      >
+        {lessThanZero ? (
+          <Tooltip
+            title="減点により0点未満になりましたが、0点として表示されています"
+            arrow
+          >
+            <span>0 ({score.toFixed(2)})</span>
+          </Tooltip>
+        ) : (
+          <span>{score.toFixed(2)}</span>
+        )}
+        {' / '}{totalPoints.toFixed(2)}
+      </Typography>
+    );
+  };
 
   // 学生追加用ダイアログを開く
   const handleOpenStudentDialog = () => {
@@ -107,8 +155,6 @@ function App() {
       studentId: newStudent.studentId,
       name: newStudent.name,
       deductions: [],
-      score: totalPoints,
-      feedback: '',
       additionalDeduction: 0,
       additionalNotes: ''
     };
@@ -171,30 +217,6 @@ function App() {
       );
       setDeductionItems(updatedDeductions);
       localStorage.setItem('deductionItems', JSON.stringify(updatedDeductions));
-
-      // 学生のscoreとfeedbackの更新
-      const updatedStudents = [];
-      for (const student of students) {
-        let newFeedback = '';
-        updatedDeductions.forEach(deduction => {
-          if (student.deductions.includes(deduction.id)) {
-            newFeedback += `${deduction.feedback} (-${deduction.points} points)\n`;
-          }
-        });
-        let newScore = totalPoints;
-        updatedDeductions.forEach(deduction => {
-          if (student.deductions.includes(deduction.id)) {
-            newScore -= deduction.points;
-          }
-        });
-        updatedStudents.push({
-          ...student,
-          feedback: newFeedback,
-          score: newScore
-        });
-      }
-      setStudents(updatedStudents);
-      localStorage.setItem('students', JSON.stringify(updatedStudents));
     } else {
       // 新規追加モード
       const newItem: DeductionItem = {
@@ -236,8 +258,6 @@ function App() {
 
       const hasDeduction = student.deductions.includes(deductionId);
       let newDeductions: string[];
-      let newScore: number;
-      let newFeedback: string;
 
       if (hasDeduction) {
         // チェックを外す場合
@@ -247,27 +267,9 @@ function App() {
         newDeductions = [...student.deductions, deductionId];
       }
 
-      // 採点の再計算
-      newScore = totalPoints;
-      newDeductions.forEach(id => {
-        const deduction = deductionItems.find(d => d.id === id);
-        if (deduction) {
-          newScore -= deduction.points;
-        }
-      });
-
-      newFeedback = '';
-      deductionItems.forEach(deduction => {
-        if (newDeductions.includes(deduction.id)) {
-          newFeedback += `${deduction.feedback} (-${deduction.points} points)\n`;
-        }
-      });
-
       return {
         ...student,
-        deductions: newDeductions,
-        score: newScore,
-        feedback: newFeedback
+        deductions: newDeductions
       };
     });
 
@@ -277,18 +279,11 @@ function App() {
 
   // 追加減点を更新する関数
   const handleAdditionalDeductionChange = (value: number) => {
-    const newStudents = students.map(student => {
-      if (student.id === selectedStudent) {
-        const newScore = totalPoints -
-          student.deductions.reduce((sum, id) => {
-            const deduction = deductionItems.find(d => d.id === id);
-            return sum + (deduction?.points || 0);
-          }, 0)
-          - value;
-        return { ...student, additionalDeduction: value, score: newScore}
-      }
-      return student;
-    });
+    const newStudents = students.map(student => 
+      student.id === selectedStudent
+        ? { ...student, additionalDeduction: value }
+        : student
+    );
     setStudents(newStudents);
     localStorage.setItem('students', JSON.stringify(newStudents));
   };
@@ -325,8 +320,6 @@ function App() {
         studentId: row[0]?.toString() || '',
         name: row[1]?.toString() || '',
         deductions: [],
-        score: totalPoints,
-        feedback: '',
         additionalDeduction: 0,
         additionalNotes: ''
       }));
@@ -345,8 +338,8 @@ function App() {
     const exportData = students.map(student => ({
       '学籍番号': student.studentId,
       '氏名': student.name,
-      '得点': student.score,
-      '講評': student.feedback.trim()
+      '得点': Math.max(calculateScore(student), 0),
+      '講評': displayGeneratedFeedback(student).trim()
     }));
 
     // ワークブックとワークシートの作成
@@ -659,7 +652,14 @@ function App() {
           </Box>
           <Box sx={{ mt: 4 }}>
             <Typography variant="h5" gutterBottom>
-              Current Score: {students.find(s => s.id === selectedStudent)?.score.toFixed(2)} / {totalPoints.toFixed(2)}
+              Current Score: {' '}
+              {students.find(s => s.id === selectedStudent) ? (
+                <ScoreDisplay
+                  student={students.find(s => s.id === selectedStudent)!}
+                />
+              ) : (
+                <Skeleton variant="text" width={100} height={30} />
+              )}
             </Typography>
             <List>
               {deductionItems.map((item) => (
@@ -695,7 +695,7 @@ function App() {
             <TextField
               multiline
               rows={4}
-              value={students.find(s => s.id === selectedStudent)?.feedback ?? ''}
+              value={students.find(s => s.id === selectedStudent) ? displayGeneratedFeedback(students.find(s => s.id === selectedStudent)!) : ''}
               fullWidth
               variant="outlined"
               disabled
