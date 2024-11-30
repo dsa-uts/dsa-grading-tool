@@ -492,7 +492,10 @@ function App() {
           DSA Grading Tool
         </Typography>
         <Box sx={{ mb: 2 }}>
-          <a href="https://github.com/takoyaki65/dsa-grading-tool" target="_blank">
+          <a href="https://github.com/takoyaki65/dsa-grading-tool"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             <img src="https://img.shields.io/badge/GitHub-dsa--grading--tool-blue?style=social&logo=GitHub"
               alt="GitHub link"/>
           </a>
