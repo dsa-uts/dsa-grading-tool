@@ -303,7 +303,7 @@ function App() {
 
   // 追加減点を更新する関数
   const handleAdditionalDeductionChange = (value: number) => {
-    const newStudents = students.map(student => 
+    const newStudents = students.map(student =>
       student.id === selectedStudent
         ? { ...student, additionalDeduction: value }
         : student
@@ -314,10 +314,10 @@ function App() {
 
   // 追加講評(自由記述)を更新する関数
   const handleAdditionalNotesChange = (value: string) => {
-    const newStudents = students.map(student => 
+    const newStudents = students.map(student =>
       student.id === selectedStudent
-      ? { ...student, additionalNotes: value }
-      : student
+        ? { ...student, additionalNotes: value }
+        : student
     );
     setStudents(newStudents);
     localStorage.setItem('students', JSON.stringify(newStudents));
@@ -488,17 +488,19 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <Typography variant="h4" component="h1" gutterBottom>
-          DSA Grading Tool
-        </Typography>
-        <Box sx={{ mb: 2 }}>
-          <a href="https://github.com/takoyaki65/dsa-grading-tool"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <img src="https://img.shields.io/badge/GitHub-dsa--grading--tool-blue?style=social&logo=GitHub"
-              alt="GitHub link"/>
-          </a>
+        <Box sx={{ textAlign: 'center' }}>
+          <Typography variant="h4" component="h1" gutterBottom>
+            DSA Grading Tool
+          </Typography>
+          <Box sx={{ mb: 2 }}>
+            <a href="https://github.com/takoyaki65/dsa-grading-tool"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <img src="https://img.shields.io/badge/GitHub-dsa--grading--tool-blue?style=social&logo=GitHub"
+                alt="GitHub link" />
+            </a>
+          </Box>
         </Box>
       </header>
       <Box sx={{ p: 3, maxWidth: 800, margin: '0 auto' }}>
@@ -658,7 +660,7 @@ function App() {
 
       {/* 選択された学生の採点セクション */}
       {selectedStudent && (
-        <>
+        <Box sx={{ width: '100%', maxWidth: '800px', margin: '0 auto', p: 3 }}>
           <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
             <Button
               variant="contained"
@@ -778,7 +780,7 @@ function App() {
               variant="outlined"
             />
           </Box>
-        </>
+        </Box>
       )}
 
       {/* 減点項目追加ダイアログ */}
@@ -887,7 +889,7 @@ function App() {
       </Dialog>
 
       {/* エクスポート関連のボタングループ */}
-      <Box sx={{ display: 'flex', gap: 1 }}>
+      <Box sx={{ width: '100%', maxWidth: '800px', margin: '0 auto', p: 3 }}>
         <Button
           variant="contained"
           color="success"
