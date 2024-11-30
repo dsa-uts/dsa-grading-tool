@@ -68,8 +68,14 @@ function App() {
   // 減点項目編集用のstate追加
   const [editingDeduction, setEditingDeduction] = useState<DeductionItem | null>(null);
 
-  // データ削除用の確認ダイアログの状態
+  // 全データ削除用の確認ダイアログの状態
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+
+  // 減点項目削除用の確認ダイアログの状態
+  const [openDeleteDeductionDialog, setOpenDeleteDeductionDialog] = useState(false);
+
+  // 削除する減点項目のIDを保持するstate
+  const [deletingDeductionId, setDeletingDeductionId] = useState<string>('');
 
   // データを全て削除する関数
   const handleDeleteAllData = () => {
@@ -700,7 +706,10 @@ function App() {
                       <IconButton edge="end" onClick={() => handleEditDeduction(item)}>
                         <EditIcon />
                       </IconButton>
-                      <IconButton edge="end" onClick={() => handleDeleteDeduction(item.id)}>
+                      <IconButton edge="end" onClick={() => {
+                        setOpenDeleteDeductionDialog(true);
+                        setDeletingDeductionId(item.id);
+                      }}>
                         <DeleteIcon />
                       </IconButton>
                     </Box>
@@ -838,6 +847,33 @@ function App() {
           >
             削除
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 減点項目削除用の確認ダイアログ */}
+      <Dialog
+        open={openDeleteDeductionDialog}
+        onClose={() => {
+          setOpenDeleteDeductionDialog(false);
+          setDeletingDeductionId('');
+        }}
+      >
+        <DialogTitle>減点項目の削除確認</DialogTitle>
+        <DialogContent>
+          <Typography>
+            選択された減点項目を削除します。よろしいですか？
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setOpenDeleteDeductionDialog(false);
+            setDeletingDeductionId('');
+          }}>キャンセル</Button>
+          <Button onClick={() => {
+            handleDeleteDeduction(deletingDeductionId);
+            setOpenDeleteDeductionDialog(false);
+            setDeletingDeductionId('');
+          }} variant="contained" color="error">削除</Button>
         </DialogActions>
       </Dialog>
 
