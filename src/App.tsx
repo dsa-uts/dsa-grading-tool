@@ -491,6 +491,12 @@ function App() {
         <Typography variant="h4" component="h1" gutterBottom>
           DSA Grading Tool
         </Typography>
+        <Box sx={{ mb: 2 }}>
+          <a href="https://github.com/takoyaki65/dsa-grading-tool" target="_blank">
+            <img src="https://img.shields.io/badge/GitHub-dsa--grading--tool-blue?style=social&logo=GitHub"
+              alt="GitHub link"/>
+          </a>
+        </Box>
       </header>
       <Box sx={{ p: 3, maxWidth: 800, margin: '0 auto' }}>
         <Box sx={{ mb: 3 }}>
