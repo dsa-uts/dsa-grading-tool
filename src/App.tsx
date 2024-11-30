@@ -41,6 +41,8 @@ interface Student {
   deductions: string[];
   score: number;
   feedback: string;
+  additionalDeduction: number; // 追加の減点(手動で指定)
+  additionalNotes: string; // 追加の講評(手動で設定)
 }
 
 function App() {
@@ -106,7 +108,9 @@ function App() {
       name: newStudent.name,
       deductions: [],
       score: totalPoints,
-      feedback: ''
+      feedback: '',
+      additionalDeduction: 0,
+      additionalNotes: ''
     };
     const newStudents = [...students, newStudentData];
     setStudents(newStudents);
@@ -271,6 +275,35 @@ function App() {
     localStorage.setItem('students', JSON.stringify(newStudents));
   }
 
+  // 追加減点を更新する関数
+  const handleAdditionalDeductionChange = (value: number) => {
+    const newStudents = students.map(student => {
+      if (student.id === selectedStudent) {
+        const newScore = totalPoints -
+          student.deductions.reduce((sum, id) => {
+            const deduction = deductionItems.find(d => d.id === id);
+            return sum + (deduction?.points || 0);
+          }, 0)
+          - value;
+        return { ...student, additionalDeduction: value, score: newScore}
+      }
+      return student;
+    });
+    setStudents(newStudents);
+    localStorage.setItem('students', JSON.stringify(newStudents));
+  };
+
+  // 追加講評(自由記述)を更新する関数
+  const handleAdditionalNotesChange = (value: string) => {
+    const newStudents = students.map(student => 
+      student.id === selectedStudent
+      ? { ...student, additionalNotes: value }
+      : student
+    );
+    setStudents(newStudents);
+    localStorage.setItem('students', JSON.stringify(newStudents));
+  };
+
   // Excelファイルを読み込む
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -293,7 +326,9 @@ function App() {
         name: row[1]?.toString() || '',
         deductions: [],
         score: totalPoints,
-        feedback: ''
+        feedback: '',
+        additionalDeduction: 0,
+        additionalNotes: ''
       }));
 
       // 既存の学生リストと結合
@@ -669,6 +704,31 @@ function App() {
                   WebkitTextFillColor: "rgba(0, 0, 0, 1)"
                 }
               }}
+            />
+          </Box>
+
+          {/* 追加減点フィールド */}
+          <Box sx={{ mt: 2 }}>
+            <TextField
+              label="追加減点"
+              type="number"
+              value={students.find(s => s.id === selectedStudent)?.additionalDeduction ?? 0}
+              onChange={(e) => handleAdditionalDeductionChange(Number(e.target.value))}
+              fullWidth
+              variant="outlined"
+            />
+          </Box>
+
+          {/* 自由記述欄 */}
+          <Box sx={{ mt: 2 }}>
+            <TextField
+              label="自由記述欄"
+              multiline
+              rows={4}
+              value={students.find(s => s.id === selectedStudent)?.additionalNotes ?? ''}
+              onChange={(e) => handleAdditionalNotesChange(e.target.value)}
+              fullWidth
+              variant="outlined"
             />
           </Box>
         </>
