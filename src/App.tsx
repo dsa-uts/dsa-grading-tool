@@ -474,9 +474,18 @@ function App() {
           feedback: item.feedback
         }));
 
-        const uploadDeductions = [...deductionItems, ...newDeductions];
-        setDeductionItems(uploadDeductions);
-        localStorage.setItem('deductionItems', JSON.stringify(uploadDeductions));
+        // description, point, feedbackのどれかが既存の減点項目と違う場合、それを新規追加する
+        // 1. newDeductionsの中身を既存のdeductionItemsと比較し、異なるものを抽出する
+        const diffDeductions = newDeductions.filter(
+          deduction => !deductionItems.some(
+            item => item.description === deduction.description &&
+              item.points === deduction.points &&
+              item.feedback === deduction.feedback
+          ));
+        // 2. それを既存のdeductionItemsに追加する
+        const updatedDeductions = [...deductionItems, ...diffDeductions];
+        setDeductionItems(updatedDeductions);
+        localStorage.setItem('deductionItems', JSON.stringify(updatedDeductions));
       } catch (error) {
         console.error('Invalid JSON file', error);
         alert('無効なJSONファイルです');
