@@ -836,6 +836,7 @@ function App() {
               onKeyDown={(e) => {
                 // Enterキーが押され、かつfeedbackが空の場合のみdescriptionをコピー
                 if (e.key === 'Enter' && !newDeduction.feedback && newDeduction.description) {
+                  e.preventDefault(); // デフォルトの挙動(改行入力)を防ぐ
                   setNewDeduction({
                     ...newDeduction,
                     feedback: newDeduction.description
