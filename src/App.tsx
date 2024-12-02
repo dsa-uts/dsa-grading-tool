@@ -817,7 +817,7 @@ function App() {
               rows={3}
               value={newDeduction.feedback}
               placeholder={!newDeduction.feedback && newDeduction.description ?
-                `${newDeduction.description} (クリックまたはEnterでコピー)` :
+                `${newDeduction.description} (クリックまたはEnter, Tabでコピー)` :
                 ''
               }
               onChange={(e) => setNewDeduction({
@@ -834,8 +834,8 @@ function App() {
                 }
               }}
               onKeyDown={(e) => {
-                // Enterキーが押され、かつfeedbackが空の場合のみdescriptionをコピー
-                if (e.key === 'Enter' && !newDeduction.feedback && newDeduction.description) {
+                // EnterキーまたはTabキーが押され、かつfeedbackが空の場合のみdescriptionをコピー
+                if ((e.key === 'Enter' || e.key === 'Tab') && !newDeduction.feedback && newDeduction.description) {
                   e.preventDefault(); // デフォルトの挙動(改行入力)を防ぐ
                   setNewDeduction({
                     ...newDeduction,
