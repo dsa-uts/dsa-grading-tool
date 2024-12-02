@@ -19,6 +19,8 @@ import DownloadIcon from '@mui/icons-material/Download';
 import SaveIcon from '@mui/icons-material/Save';
 import UploadIcon from '@mui/icons-material/Upload';
 import EditIcon from '@mui/icons-material/Edit';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import IconButton from '@mui/material/IconButton';
 import Checkbox from '@mui/material/Checkbox';
 import List from '@mui/material/List';
@@ -259,6 +261,22 @@ function App() {
     setOpenDeductionDialog(false);
     setEditingDeduction(null);
   };
+
+  // deductionItemsの並び替え
+  const moveDeductionItem = (index: number, direction: 'up' | 'down') => {
+    const newDeductions = [...deductionItems];
+    if (direction === 'up' && index > 0) {
+      // 要素を上に移動
+      [newDeductions[index - 1], newDeductions[index]] =
+        [newDeductions[index], newDeductions[index - 1]];
+    } else if (direction === 'down' && index < newDeductions.length - 1) {
+      // 要素を下に移動
+      [newDeductions[index], newDeductions[index + 1]] =
+        [newDeductions[index + 1], newDeductions[index]];
+    }
+    setDeductionItems(newDeductions);
+    localStorage.setItem('deductionItems', JSON.stringify(newDeductions));
+  }
 
   // 減点項目のダイアログを閉じる
   const handleCloseDeductionDialog = () => {
@@ -505,7 +523,7 @@ function App() {
           </Box>
         </Box>
       </header>
-      <Box sx={{ p: 3, maxWidth: 800, margin: '0 auto' }}>
+      <Box sx={{ p: 3, maxWidth: 1000, margin: '0 auto' }}>
         <Box sx={{ mb: 3 }}>
           <TextField
             label="totalPoints"
@@ -662,7 +680,7 @@ function App() {
 
       {/* 選択された学生の採点セクション */}
       {selectedStudent && (
-        <Box sx={{ width: '100%', maxWidth: '800px', margin: '0 auto', p: 3 }}>
+        <Box sx={{ width: '100%', maxWidth: '1000px', margin: '0 auto', p: 3 }}>
           <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
             <Button
               variant="contained"
@@ -710,12 +728,26 @@ function App() {
               )}
             </Typography>
             <List>
-              {deductionItems.map((item) => (
+              {deductionItems.map((item, index) => (
                 <ListItem
                   key={item.id}
                   dense
                   secondaryAction={
                     <Box sx={{ display: 'flex', gap: 1 }}>
+                      <IconButton
+                        edge="end"
+                        onClick={() => moveDeductionItem(index, 'up')}
+                        disabled={index === 0}
+                      >
+                        <KeyboardArrowUpIcon />
+                      </IconButton>
+                      <IconButton
+                        edge="end"
+                        onClick={() => moveDeductionItem(index, 'down')}
+                        disabled={index === deductionItems.length - 1}
+                      >
+                        <KeyboardArrowDownIcon />
+                      </IconButton>
                       <IconButton edge="end" onClick={() => handleEditDeduction(item)}>
                         <EditIcon />
                       </IconButton>
@@ -914,7 +946,7 @@ function App() {
       </Dialog>
 
       {/* エクスポート関連のボタングループ */}
-      <Box sx={{ width: '100%', maxWidth: '800px', margin: '0 auto', p: 3 }}>
+      <Box sx={{ width: '100%', maxWidth: '1000px', margin: '0 auto', p: 3 }}>
         <Button
           variant="contained"
           color="success"
