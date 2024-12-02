@@ -106,9 +106,11 @@ function App() {
     student.deductions.forEach(id => {
       const deduction = deductionItems.find(d => d.id === id);
       if (deduction) {
-        feedback += `${deduction.feedback} (-${deduction.points} points)\n`;
+        feedback += `${deduction.feedback} (-${deduction.points} points), `;
       }
     });
+    // 自由記述フィードバックの追加
+    feedback += '\n' + student.additionalNotes;
     return feedback;
   }
 
