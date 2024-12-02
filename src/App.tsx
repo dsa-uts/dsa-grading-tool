@@ -816,10 +816,23 @@ function App() {
               multiline
               rows={3}
               value={newDeduction.feedback}
+              placeholder={!newDeduction.feedback && newDeduction.description ?
+                `${newDeduction.description} (クリックでコピー)` :
+                ''
+              }
               onChange={(e) => setNewDeduction({
                 ...newDeduction,
                 feedback: e.target.value
               })}
+              onClick={(e) => {
+                // feedbackが空の場合のみdescriptionをコピー
+                if (!newDeduction.feedback && newDeduction.description) {
+                  setNewDeduction({
+                    ...newDeduction,
+                    feedback: newDeduction.description
+                  });
+                }
+              }}
               fullWidth
             />
           </Box>
