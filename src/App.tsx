@@ -21,6 +21,8 @@ import UploadIcon from '@mui/icons-material/Upload';
 import EditIcon from '@mui/icons-material/Edit';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowLeftIcon from '@mui/icons-material/KeyboardArrowLeft';
+import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import IconButton from '@mui/material/IconButton';
 import Checkbox from '@mui/material/Checkbox';
 import List from '@mui/material/List';
@@ -92,6 +94,22 @@ function App() {
 
     // ダイアログを閉じる
     setOpenDeleteDialog(false);
+  };
+
+  // 学生移動用の関数
+  const moveToAdjacentStudent = (direction: 'prev' | 'next', scrollToTop: boolean = false) => {
+    const currentIndex = students.findIndex(s => s.id === selectedStudent);
+    if (currentIndex < 0 || currentIndex >= students.length) return;
+
+    if (direction === 'prev' && currentIndex > 0) {
+      setSelectedStudent(students[currentIndex - 1].id);
+    } else if (direction === 'next' && currentIndex < students.length - 1) {
+      setSelectedStudent(students[currentIndex + 1].id);
+    }
+
+    if (scrollToTop) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   // スコアを計算する関数
@@ -726,16 +744,30 @@ function App() {
             </Tooltip>
           </Box>
           <Box sx={{ mt: 4 }}>
-            <Typography variant="h5" gutterBottom>
-              Current Score: {' '}
-              {students.find(s => s.id === selectedStudent) ? (
-                <ScoreDisplay
-                  student={students.find(s => s.id === selectedStudent)!}
-                />
-              ) : (
-                <Skeleton variant="text" width={100} height={30} />
-              )}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <IconButton
+                onClick={() => moveToAdjacentStudent('prev')}
+                disabled={!selectedStudent || students.findIndex(s => s.id === selectedStudent) === 0}
+              >
+                <KeyboardArrowLeftIcon />
+              </IconButton>
+              <Typography variant="h5" gutterBottom>
+                {students.find(s => s.id === selectedStudent)?.name} ({students.find(s => s.id === selectedStudent)?.studentId}) Score: {' '}
+                {students.find(s => s.id === selectedStudent) ? (
+                  <ScoreDisplay
+                    student={students.find(s => s.id === selectedStudent)!}
+                  />
+                ) : (
+                  <Skeleton variant="text" width={100} height={30} />
+                )}
+              </Typography>
+              <IconButton
+                onClick={() => moveToAdjacentStudent('next')}
+                disabled={!selectedStudent || students.findIndex(s => s.id === selectedStudent) === students.length - 1}
+              >
+                <KeyboardArrowRightIcon />
+              </IconButton>
+            </Box>
             <List>
               {deductionItems.map((item, index) => (
                 <ListItem
@@ -956,6 +988,30 @@ function App() {
 
       {/* エクスポート関連のボタングループ */}
       <Box sx={{ width: '100%', maxWidth: '1000px', margin: '0 auto', p: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+          <IconButton
+            onClick={() => moveToAdjacentStudent('prev', true)}
+            disabled={!selectedStudent || students.findIndex(s => s.id === selectedStudent) === 0}
+          >
+            <KeyboardArrowLeftIcon />
+          </IconButton>
+          <Typography variant="h5" gutterBottom>
+            {students.find(s => s.id === selectedStudent)?.name} ({students.find(s => s.id === selectedStudent)?.studentId}) : {' '}
+            {students.find(s => s.id === selectedStudent) ? (
+              <ScoreDisplay
+                student={students.find(s => s.id === selectedStudent)!}
+              />
+            ) : (
+              <Skeleton variant="text" width={100} height={30} />
+            )}
+          </Typography>
+          <IconButton
+            onClick={() => moveToAdjacentStudent('next', true)}
+            disabled={!selectedStudent || students.findIndex(s => s.id === selectedStudent) === students.length - 1}
+          >
+            <KeyboardArrowRightIcon />
+          </IconButton>
+        </Box>
         <Button
           variant="contained"
           color="success"
