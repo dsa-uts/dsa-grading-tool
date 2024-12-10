@@ -31,28 +31,53 @@ import ListItemText from '@mui/material/ListItemText';
 import Autocomplete from '@mui/material/Autocomplete';
 
 import * as XLSX from 'xlsx';
-
-interface DeductionItem {
-  id: string;
-  description: string;
-  points: number;
-  feedback: string;
-}
-
-interface Student {
-  id: string;
-  studentId: string;
-  name: string;
-  deductions: string[];
-  additionalDeduction: number; // 追加の減点(手動で指定)
-  additionalNotes: string; // 追加の講評(手動で設定)
-}
+import { DeductionItem, Student, RegisteredDeduction, AllData, CheckBoxState, RegisteredDeductionTree } from './types/all_type';
 
 function App() {
-  const [totalPoints, setTotalPoints] = useState(100);
-  const [deductionItems, setDeductionItems] = useState<DeductionItem[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<string>('');
+  const [allData, setAllData] = useState<AllData>({
+    totalPoints: 100,
+    deductionItemTree: {
+      id: 'root',
+      description: 'チェックリスト',
+      points: 100,
+      defaultFeedback: '採点ができない',
+      subDeductions: []
+    },
+    studentList: []
+  });
+  // deductionId -> DeductionItemのmap
+  const [deductionIdToItemMap, setDeductionIdToItemMap] = useState<Map<string, DeductionItem>>(new Map());
+  // deductionId -> アクセスパスのmap
+  /**
+   * path: その減点項目を、deductionItemTreeの根からたどるためのパス
+   * 例えば、
+   * 
+   * "1" --- "1-1"
+   *      |
+   *      |- "1-2"
+   *      |    |
+   *      |    |- "1-2-1"
+   *      |    |
+   *      |    |- "1-2-2"
+   *      |
+   *      |- "1-3"
+   * 
+   * の場合、
+   * 
+   * "1" -> []
+   * "1-1" -> [0]
+   * "1-2" -> [1]
+   * "1-2-1" -> [1, 0]
+   * "1-2-2" -> [1, 1]
+   * "1-3" -> [2]
+   * 
+   * となる。
+   * 講評を生成するときに必要
+   */
+  const [deductionIdToPathMap, setDeductionIdToPathMap] = useState<Map<string, number[]>>(new Map());
+
+  // 選択中の学生のID
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
 
   // 学生追加用コンポーネント
   const [openStudentDialog, setOpenStudentDialog] = useState(false);
@@ -63,17 +88,23 @@ function App() {
 
   // 減点項目追加用のダイアログの状態
   const [openDeductionDialog, setOpenDeductionDialog] = useState(false);
-  const [newDeduction, setNewDeduction] = useState({
+  const [newDeduction, setNewDeduction] = useState<{
+    parentPath: number[];
+    description: string;
+    points: number;
+    defaultFeedback: string;
+  }>({
+    parentPath: [],
     description: '',
     points: 0,
-    feedback: ''
+    defaultFeedback: ''
   });
 
   // 減点項目編集用のstate追加
   const [editingDeduction, setEditingDeduction] = useState<DeductionItem | null>(null);
 
   // 全データ削除用の確認ダイアログの状態
-  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [openDeleteAllDialog, setOpenDeleteAllDialog] = useState(false);
 
   // 減点項目削除用の確認ダイアログの状態
   const [openDeleteDeductionDialog, setOpenDeleteDeductionDialog] = useState(false);
@@ -81,30 +112,76 @@ function App() {
   // 削除する減点項目のIDを保持するstate
   const [deletingDeductionId, setDeletingDeductionId] = useState<string>('');
 
+  // DeductionItemTreeからMapを構築する再帰的な関数
+  const buildDeductionMap = (item: DeductionItem, map: Map<string, DeductionItem>) => {
+    map.set(item.id, item);
+    item.subDeductions.forEach(subItem => {
+      buildDeductionMap(subItem, map);
+    });
+  };
+
+  const buildDeductionIdToPathMap = (item: DeductionItem, map: Map<string, number[]>, currentPath: number[]) => {
+    map.set(item.id, currentPath);
+    item.subDeductions.forEach((subItem, index) => {
+      buildDeductionIdToPathMap(subItem, map, [...currentPath, index]);
+    });
+  };
+
+  const updateMaps = () => {
+    const initialDeductionIdToItemMap = new Map();
+    buildDeductionMap(allData.deductionItemTree, initialDeductionIdToItemMap);
+    setDeductionIdToItemMap(initialDeductionIdToItemMap);
+
+    const initialDeductionIdToPathMap = new Map();
+    buildDeductionIdToPathMap(allData.deductionItemTree, initialDeductionIdToPathMap, []);
+    setDeductionIdToPathMap(initialDeductionIdToPathMap);
+  }
+
+  // LocalStorageからデータを読む
+  useEffect(() => {
+    console.log('useEffect');
+    const savedData = localStorage.getItem('dsa-grading-tool-data');
+    if (savedData) {
+      setAllData(JSON.parse(savedData));
+    }
+
+    updateMaps();
+  }, []);
+
   // データを全て削除する関数
   const handleDeleteAllData = () => {
     // LocalStorageからデータを削除
-    localStorage.removeItem('deductionItems');
-    localStorage.removeItem('students');
+    localStorage.removeItem('dsa-grading-tool-data');
 
     // stateを空にする
-    setDeductionItems([]);
-    setStudents([]);
-    setSelectedStudent('');
+    setAllData({
+      totalPoints: 100,
+      deductionItemTree: {
+        id: 'root',
+        description: 'チェックリスト',
+        points: 100,
+        defaultFeedback: '採点ができない',
+        subDeductions: []
+      },
+      studentList: []
+    });
+    setSelectedStudentId('');
+
+    updateMaps();
 
     // ダイアログを閉じる
-    setOpenDeleteDialog(false);
+    setOpenDeleteAllDialog(false);
   };
 
   // 学生移動用の関数
   const moveToAdjacentStudent = (direction: 'prev' | 'next', scrollToTop: boolean = false) => {
-    const currentIndex = students.findIndex(s => s.id === selectedStudent);
-    if (currentIndex < 0 || currentIndex >= students.length) return;
+    const currentIndex = allData.studentList.findIndex(s => s.id === selectedStudentId);
+    if (currentIndex < 0 || currentIndex >= allData.studentList.length) return;
 
     if (direction === 'prev' && currentIndex > 0) {
-      setSelectedStudent(students[currentIndex - 1].id);
-    } else if (direction === 'next' && currentIndex < students.length - 1) {
-      setSelectedStudent(students[currentIndex + 1].id);
+      setSelectedStudentId(allData.studentList[currentIndex - 1].id);
+    } else if (direction === 'next' && currentIndex < allData.studentList.length - 1) {
+      setSelectedStudentId(allData.studentList[currentIndex + 1].id);
     }
 
     if (scrollToTop) {
@@ -114,23 +191,59 @@ function App() {
 
   // スコアを計算する関数
   const calculateScore = (student: Student) => {
-    const deductionTotal = student.deductions.reduce((sum, id) => {
-      const deduction = deductionItems.find(d => d.id === id);
-      return sum + (deduction?.points || 0);
+    const deductionTotal = student.registeredDeductionList.reduce((acc, regDeduction) => {
+      const deductionItem = deductionIdToItemMap.get(regDeduction.deductionId);
+      if (deductionItem) {
+        return acc + deductionItem.points;
+      }
+      return acc;
     }, 0);
-    return totalPoints - deductionTotal - student.additionalDeduction;
+    return allData.totalPoints - deductionTotal - student.additionalDeduction;
   };
 
   const displayGeneratedFeedback = (student: Student) => {
     let feedback = '';
-    student.deductions.forEach(id => {
-      const deduction = deductionItems.find(d => d.id === id);
-      if (deduction) {
-        feedback += `${deduction.feedback} (-${deduction.points} points), `;
-      }
+
+    // student.registeredDeductionListを、pathの辞書順でソートする
+    // 例えば、("1" -> "1-1"), ("2" -> "2-1"), ("1-1" -> "1-1-1")なら、
+    // ("1" -> "1-1"), ("1-1" -> "1-1-1"), ("2" -> "2-1")となる
+    student.registeredDeductionList.sort((a, b) => {
+      const aPath = deductionIdToPathMap.get(a.deductionId);
+      const bPath = deductionIdToPathMap.get(b.deductionId);
+      if (!aPath || !bPath) return 0;
+      // path(number[])を、"%04d-%04d-%04d..."のように文字列に変換
+      const aPathString = aPath.map(p => p.toString().padStart(4, '0')).join('-');
+      const bPathString = bPath.map(p => p.toString().padStart(4, '0')).join('-');
+      return aPathString < bPathString ? -1 : 1;
     });
+
+    const renderedNodeSet = new Set();
+    for (const regDeduction of student.registeredDeductionList) {
+      const deductionItem = deductionIdToItemMap.get(regDeduction.deductionId);
+      const path = deductionIdToPathMap.get(regDeduction.deductionId);
+      if (!path || !deductionItem) continue;
+
+      let currentNode: DeductionItem = allData.deductionItemTree;
+      for (let i = 0; i < path.length - 1; ++i) {
+        currentNode = currentNode.subDeductions[path[i]];
+        if (renderedNodeSet.has(currentNode.id)) {
+          continue;
+        }
+        const indent = '  '.repeat(i);
+        feedback += `${indent}${currentNode.description}:\n`;
+        renderedNodeSet.add(currentNode.id);
+      }
+
+      const indent = '  '.repeat(path.length - 1);
+      feedback += `${indent}${regDeduction.feedback}(-${deductionItem.points}points)\n`;
+    }
+
     // 自由記述フィードバックの追加
-    feedback += '\n' + student.additionalNotes;
+    if (feedback !== '') {
+      feedback += '\n' + student.additionalFeedback;
+    } else {
+      feedback = student.additionalFeedback;
+    }
     return feedback;
   }
 
@@ -158,7 +271,7 @@ function App() {
         ) : (
           <span>{score.toFixed(2)}</span>
         )}
-        {' / '}{totalPoints.toFixed(2)}
+        {' / '}{allData.totalPoints.toFixed(2)}
       </Typography>
     );
   };
@@ -177,21 +290,6 @@ function App() {
     setOpenStudentDialog(false);
   };
 
-
-  // LocalStorageからデータを読む
-  useEffect(() => {
-    console.log('useEffect');
-    const savedDeductions = localStorage.getItem('deductionItems');
-    const savedStudents = localStorage.getItem('students');
-
-    if (savedDeductions) {
-      setDeductionItems(JSON.parse(savedDeductions));
-    }
-    if (savedStudents) {
-      setStudents(JSON.parse(savedStudents));
-    }
-  }, []);
-
   // 学生を追加する
   const handleAddStudent = () => {
     if (!newStudent.studentId || !newStudent.name) return;
@@ -200,49 +298,86 @@ function App() {
       id: `student-${Date.now()}`,
       studentId: newStudent.studentId,
       name: newStudent.name,
-      deductions: [],
+      isSubmitted: true,
+      isGraded: false,
+      registeredDeductionList: [],
       additionalDeduction: 0,
-      additionalNotes: ''
+      additionalFeedback: ''
     };
-    const newStudents = [...students, newStudentData];
-    setStudents(newStudents);
-    localStorage.setItem('students', JSON.stringify(newStudents));
+    const newStudents = [...allData.studentList, newStudentData];
+    setAllData({
+      ...allData,
+      studentList: newStudents
+    });
+    localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
     handleCloseStudentDialog();
   };
 
   // 選択中の学生を削除する
   const handleRemoveStudent = () => {
-    if (!selectedStudent) return;
-    const newStudents = students.filter(student => student.id !== selectedStudent);
-    setStudents(newStudents);
-    setSelectedStudent('');
-    localStorage.setItem('students', JSON.stringify(newStudents));
+    if (!selectedStudentId) return;
+    const newStudents = allData.studentList.filter(student => student.id !== selectedStudentId);
+    setAllData({
+      ...allData,
+      studentList: newStudents
+    });
+    setSelectedStudentId('');
+    localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
   };
 
   // 減点項目の編集
   const handleEditDeduction = (item: DeductionItem) => {
     setEditingDeduction(item);
+    const path = deductionIdToPathMap.get(item.id);
+    if (!path) return;
     setNewDeduction({
+      parentPath: path,
       description: item.description,
       points: item.points,
-      feedback: item.feedback
+      defaultFeedback: item.defaultFeedback
     });
     setOpenDeductionDialog(true);
   };
 
   // 減点項目の削除
   const handleDeleteDeduction = (deductionId: string) => {
-    const newDeductions = deductionItems.filter(item => item.id !== deductionId);
-    setDeductionItems(newDeductions);
-    localStorage.setItem('deductionItems', JSON.stringify(newDeductions));
+    const targetPath = deductionIdToPathMap.get(deductionId);
+    if (!targetPath) return;
+
+    // path = [0, 1, 2] の場合、
+    // pathが[0, 1, 2,...]で始まる減点項目全て削除する
+    // [0, 1, 2,...]で始まる減点項目のidリストをdeductionIdToPathMapから取得
+    const targetIds = Array.from(deductionIdToPathMap.entries()).filter(([id, path]) => {
+      return path.length >= targetPath.length && path.slice(0, targetPath.length).every((value, index) => value === targetPath[index]);
+    }).map(([id, path]) => id);
+
+    // DeductionItemTreeを更新する
+    let newDeductionItemTree = allData.deductionItemTree;
+    let currentNode = newDeductionItemTree;
+    for (let i = 0; i < targetPath.length - 1; ++i) {
+      currentNode = currentNode.subDeductions[targetPath[i]];
+    }
+    // currentNode.subDeductions[targetPath[targetPath.length - 1]]を削除
+    currentNode.subDeductions = currentNode.subDeductions.filter(item => item.id !== deductionId);
+
+    setAllData({
+      ...allData,
+      deductionItemTree: newDeductionItemTree
+    });
 
     // 学生の採点項目からも削除
-    const updatedStudents = students.map(student => ({
+    const updatedStudents = allData.studentList.map(student => ({
       ...student,
-      deductions: student.deductions.filter(id => id !== deductionId)
+      registeredDeductionList: student.registeredDeductionList.filter(regDeduction => !targetIds.includes(regDeduction.deductionId))
     }));
-    setStudents(updatedStudents);
-    localStorage.setItem('students', JSON.stringify(updatedStudents));
+    setAllData({
+      ...allData,
+      studentList: updatedStudents
+    });
+    localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
+
+    // マップを更新
+    updateMaps();
   };
 
   // 減点項目を追加または更新
@@ -251,49 +386,86 @@ function App() {
 
     if (editingDeduction) {
       // 編集モード
-      const updatedDeductions = deductionItems.map(item =>
-        item.id === editingDeduction.id
-          ? {
-            ...item,
-            description: newDeduction.description,
-            points: newDeduction.points,
-            feedback: newDeduction.feedback
-          }
-          : item
-      );
-      setDeductionItems(updatedDeductions);
-      localStorage.setItem('deductionItems', JSON.stringify(updatedDeductions));
+      const targetPath = deductionIdToPathMap.get(editingDeduction.id);
+      if (!targetPath) return;
+
+      let newDeductionItemTree = allData.deductionItemTree;
+      let currentNode = newDeductionItemTree;
+      for (let i = 0; i < targetPath.length - 1; ++i) {
+        currentNode = currentNode.subDeductions[targetPath[i]];
+      }
+      currentNode.subDeductions[targetPath[targetPath.length - 1]] = {
+        ...editingDeduction,
+        description: newDeduction.description,
+        points: newDeduction.points,
+        defaultFeedback: newDeduction.defaultFeedback
+      };
+
+      setAllData({
+        ...allData,
+        deductionItemTree: newDeductionItemTree
+      });
+      localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
     } else {
       // 新規追加モード
       const newItem: DeductionItem = {
         id: `deduction-${Date.now()}`,
         description: newDeduction.description,
         points: newDeduction.points,
-        feedback: newDeduction.feedback
+        defaultFeedback: newDeduction.defaultFeedback,
+        subDeductions: []
       };
-      const newDeductions = [...deductionItems, newItem];
-      setDeductionItems(newDeductions);
-      localStorage.setItem('deductionItems', JSON.stringify(newDeductions));
+      let deductionItemTree = allData.deductionItemTree;
+      let currentNode = deductionItemTree;
+      for (let i = 0; i < newDeduction.parentPath.length; ++i) {
+        currentNode = currentNode.subDeductions[newDeduction.parentPath[i]];
+      }
+      currentNode.subDeductions.push(newItem);
+
+      setAllData({
+        ...allData,
+        deductionItemTree: deductionItemTree
+      });
+      localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
+
+      // マップを更新
+      updateMaps();
     }
 
     setOpenDeductionDialog(false);
     setEditingDeduction(null);
   };
 
-  // deductionItemsの並び替え
-  const moveDeductionItem = (index: number, direction: 'up' | 'down') => {
-    const newDeductions = [...deductionItems];
-    if (direction === 'up' && index > 0) {
-      // 要素を上に移動
-      [newDeductions[index - 1], newDeductions[index]] =
-        [newDeductions[index], newDeductions[index - 1]];
-    } else if (direction === 'down' && index < newDeductions.length - 1) {
-      // 要素を下に移動
-      [newDeductions[index], newDeductions[index + 1]] =
-        [newDeductions[index + 1], newDeductions[index]];
+  // subDeductionsの並び替え
+  const moveDeductionItem = (targetPath: number[], direction: 'up' | 'down') => {
+    const parentPath = targetPath.slice(0, targetPath.length - 1);
+
+    let deductionItemTree = allData.deductionItemTree;
+    let currentNode = deductionItemTree;
+    for (let i = 0; i < parentPath.length; ++i) {
+      currentNode = currentNode.subDeductions[parentPath[i]];
     }
-    setDeductionItems(newDeductions);
-    localStorage.setItem('deductionItems', JSON.stringify(newDeductions));
+    const subDeductionSize = currentNode.subDeductions.length;
+    const targetIndex = targetPath[targetPath.length - 1];
+
+    if (direction === 'up' && targetIndex > 0) {
+      // 要素を上に移動
+      [currentNode.subDeductions[targetIndex - 1], currentNode.subDeductions[targetIndex]] =
+        [currentNode.subDeductions[targetIndex], currentNode.subDeductions[targetIndex - 1]];
+    } else if (direction === 'down' && targetIndex < subDeductionSize - 1) {
+      // 要素を下に移動
+      [currentNode.subDeductions[targetIndex], currentNode.subDeductions[targetIndex + 1]] =
+        [currentNode.subDeductions[targetIndex + 1], currentNode.subDeductions[targetIndex]];
+    }
+
+    setAllData({
+      ...allData,
+      deductionItemTree: deductionItemTree
+    });
+    localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
+
+    // マップを更新
+    updateMaps();
   }
 
   // 減点項目のダイアログを閉じる
@@ -301,64 +473,77 @@ function App() {
     setOpenDeductionDialog(false);
     setEditingDeduction(null);
     setNewDeduction({
+      parentPath: [],
       description: '',
       points: 0,
-      feedback: ''
+      defaultFeedback: ''
     });
   };
 
   // 減点項目のチェック状態を変更
   const handleDeductionToggle = (deductionId: string) => {
-    const currentStudent = students.find(s => s.id === selectedStudent);
+    const currentStudent = allData.studentList.find(s => s.id === selectedStudentId);
     if (!currentStudent) return;
 
-    const deduction = deductionItems.find(d => d.id === deductionId);
+    const deduction = deductionIdToItemMap.get(deductionId);
     if (!deduction) return;
 
-    const newStudents = students.map(student => {
-      if (student.id !== selectedStudent) return student;
+    const newStudents = allData.studentList.map(student => {
+      if (student.id !== selectedStudentId) return student;
 
-      const hasDeduction = student.deductions.includes(deductionId);
-      let newDeductions: string[];
+      const hasDeduction = student.registeredDeductionList.some(regDeduction => regDeduction.deductionId === deductionId);
+      let newDeductions: RegisteredDeduction[];
 
       if (hasDeduction) {
         // チェックを外す場合
-        newDeductions = student.deductions.filter(id => id !== deductionId);
+        newDeductions = student.registeredDeductionList.filter(regDeduction => regDeduction.deductionId !== deductionId);
       } else {
         // チェックを入れる場合
-        newDeductions = [...student.deductions, deductionId];
+        newDeductions = [...student.registeredDeductionList, { deductionId, feedback: deduction.defaultFeedback }];
       }
 
       return {
         ...student,
-        deductions: newDeductions
+        registeredDeductionList: newDeductions
       };
     });
 
-    setStudents(newStudents);
-    localStorage.setItem('students', JSON.stringify(newStudents));
+    setAllData({
+      ...allData,
+      studentList: newStudents
+    });
+    localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
+
+    // マップを更新
+    updateMaps();
   }
 
   // 追加減点を更新する関数
   const handleAdditionalDeductionChange = (value: number) => {
-    const newStudents = students.map(student =>
-      student.id === selectedStudent
+    const newStudents = allData.studentList.map(student =>
+      student.id === selectedStudentId
         ? { ...student, additionalDeduction: value }
         : student
     );
-    setStudents(newStudents);
-    localStorage.setItem('students', JSON.stringify(newStudents));
+    setAllData({
+      ...allData,
+      studentList: newStudents
+    });
+    localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
   };
 
   // 追加講評(自由記述)を更新する関数
   const handleAdditionalNotesChange = (value: string) => {
-    const newStudents = students.map(student =>
-      student.id === selectedStudent
-        ? { ...student, additionalNotes: value }
+    const newStudents = allData.studentList.map(student =>
+      student.id === selectedStudentId
+        ? { ...student, additionalFeedback: value }
         : student
     );
-    setStudents(newStudents);
-    localStorage.setItem('students', JSON.stringify(newStudents));
+    setAllData({
+      ...allData,
+      studentList: newStudents
+    });
+    localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
   };
 
   // Excelファイルを読み込む
@@ -381,15 +566,20 @@ function App() {
         id: `student-${Date.now()}-${Math.random()}`,
         studentId: row[0]?.toString() || '',
         name: row[1]?.toString() || '',
-        deductions: [],
+        isSubmitted: true,
+        isGraded: false,
+        registeredDeductionList: [],
         additionalDeduction: 0,
-        additionalNotes: ''
+        additionalFeedback: ''
       }));
 
       // 既存の学生リストと結合
-      const updatedStudents = [...students, ...newStudents];
-      setStudents(updatedStudents);
-      localStorage.setItem('students', JSON.stringify(updatedStudents));
+      const updatedStudents = [...allData.studentList, ...newStudents];
+      setAllData({
+        ...allData,
+        studentList: updatedStudents
+      });
+      localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
     };
     reader.readAsArrayBuffer(file);
   }
@@ -397,7 +587,7 @@ function App() {
   // 採点結果をエクスポート
   const handleExportResults = () => {
     // エクスポートするデータの作成
-    const exportData = students.map(student => ({
+    const exportData = allData.studentList.map(student => ({
       '学籍番号': student.studentId,
       '氏名': student.name,
       '得点': Math.max(calculateScore(student), 0),
@@ -427,10 +617,7 @@ function App() {
 
   // このシステムの内部データ(deductionItems, students)を保存
   const handleSaveData = () => {
-    const saveData = {
-      deductionItems,
-      students
-    };
+    const saveData = allData;
 
     const blob = new Blob([JSON.stringify(saveData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -443,7 +630,7 @@ function App() {
     URL.revokeObjectURL(url);
   }
 
-  // このシステムの内部データ(deductionItems, students)を読み込む
+  // このシステムの内部データを読み込む
   const handleLoadData = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -453,15 +640,8 @@ function App() {
       try {
         const data = JSON.parse(e.target?.result as string);
 
-        if (data.deductionItems && Array.isArray(data.deductionItems)) {
-          setDeductionItems(data.deductionItems);
-          localStorage.setItem('deductionItems', JSON.stringify(data.deductionItems));
-        }
-
-        if (data.students && Array.isArray(data.students)) {
-          setStudents(data.students);
-          localStorage.setItem('students', JSON.stringify(data.students));
-        }
+        setAllData(data);
+        localStorage.setItem('dsa-grading-tool-data', JSON.stringify(data));
       } catch (error) {
         console.error('Invalid JSON file', error);
         alert('無効なJSONファイルです');
@@ -480,30 +660,13 @@ function App() {
       try {
         const data = JSON.parse(e.target?.result as string);
 
-        if (!Array.isArray(data)) {
-          alert('無効なJSONファイルです。配列形式である必要があります。');
-          return;
-        }
-
-        const newDeductions: DeductionItem[] = data.map(item => ({
-          id: `deduction-${Date.now()}-${Math.random()}`,
-          description: item.description,
-          points: item.point,
-          feedback: item.feedback
-        }));
-
-        // description, point, feedbackのどれかが既存の減点項目と違う場合、それを新規追加する
-        // 1. newDeductionsの中身を既存のdeductionItemsと比較し、異なるものを抽出する
-        const diffDeductions = newDeductions.filter(
-          deduction => !deductionItems.some(
-            item => item.description === deduction.description &&
-              item.points === deduction.points &&
-              item.feedback === deduction.feedback
-          ));
-        // 2. それを既存のdeductionItemsに追加する
-        const updatedDeductions = [...deductionItems, ...diffDeductions];
-        setDeductionItems(updatedDeductions);
-        localStorage.setItem('deductionItems', JSON.stringify(updatedDeductions));
+        setAllData({
+          ...allData,
+          deductionItemTree: data
+        });
+        localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
+        // マップを更新
+        updateMaps();
       } catch (error) {
         console.error('Invalid JSON file', error);
         alert('無効なJSONファイルです');
@@ -514,12 +677,7 @@ function App() {
 
   // 減点項目リスト(JSON)をエクスポート
   const handleExportDeductions = () => {
-    // idは抜いてエクスポート
-    const exportData = deductionItems.map(item => ({
-      description: item.description,
-      points: item.points,
-      feedback: item.feedback
-    }));
+    const exportData = allData.deductionItemTree;
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -555,8 +713,14 @@ function App() {
           <TextField
             label="totalPoints"
             type="number"
-            value={totalPoints}
-            onChange={(e) => setTotalPoints(Number(e.target.value))}
+            value={allData.totalPoints}
+            onChange={(e) => {
+              setAllData({
+                ...allData,
+                totalPoints: Number(e.target.value)
+              })
+              localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
+            }}
             fullWidth
             variant="outlined"
           />
@@ -565,11 +729,11 @@ function App() {
         <Box sx={{ mb: 2 }}>
           <Autocomplete
             // 現在選択されている値を指定
-            value={students.find(student => student.id === selectedStudent) || null}
+            value={allData.studentList.find(student => student.id === selectedStudentId) || null}
             // 選択値が変更されたときの処理
-            onChange={(_, newValue) => setSelectedStudent(newValue?.id || '')}
+            onChange={(_, newValue) => setSelectedStudentId(newValue?.id || '')}
             // 選択肢のリストを指定
-            options={students}
+            options={allData.studentList}
             // 各選択肢の表示テキストをカスタマイズ
             getOptionLabel={(option) => `${option.name} (${option.studentId})`}
             // テキストフィールドの見た目をカスタマイズ
@@ -627,7 +791,7 @@ function App() {
               color="secondary"
               startIcon={<SaveIcon />}
               onClick={handleSaveData}
-              disabled={students.length === 0 && deductionItems.length === 0}
+              disabled={allData.studentList.length === 0 && allData.deductionItemTree.subDeductions.length === 0}
             >
               Save Data...
             </Button>
@@ -653,8 +817,8 @@ function App() {
               variant="contained"
               color="error"
               startIcon={<DeleteIcon />}
-              onClick={() => setOpenDeleteDialog(true)}
-              disabled={students.length === 0 && deductionItems.length === 0}
+              onClick={() => setOpenDeleteAllDialog(true)}
+              disabled={allData.studentList.length === 0 && allData.deductionItemTree.subDeductions.length === 0}
             >
               Delete Data...
             </Button>
@@ -662,7 +826,7 @@ function App() {
         </Box>
 
         <Typography variant="body2" color="text.secondary">
-          学生数: {students.length}
+          学生数: {allData.studentList.length}
         </Typography>
       </Box>
 
@@ -706,7 +870,7 @@ function App() {
       </Dialog>
 
       {/* 選択された学生の採点セクション */}
-      {selectedStudent && (
+      {selectedStudentId && (
         <Box sx={{ width: '100%', maxWidth: '1000px', margin: '0 auto', p: 3 }}>
           <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
             <Button
@@ -888,31 +1052,31 @@ function App() {
               label="feedback"
               multiline
               rows={3}
-              value={newDeduction.feedback}
-              placeholder={!newDeduction.feedback && newDeduction.description ?
+              value={newDeduction.defaultFeedback}
+              placeholder={!newDeduction.defaultFeedback && newDeduction.description ?
                 `${newDeduction.description} (クリックまたはEnter, Tabでコピー)` :
                 ''
               }
               onChange={(e) => setNewDeduction({
                 ...newDeduction,
-                feedback: e.target.value
+                defaultFeedback: e.target.value
               })}
               onClick={(e) => {
                 // feedbackが空の場合のみdescriptionをコピー
-                if (!newDeduction.feedback && newDeduction.description) {
+                if (!newDeduction.defaultFeedback && newDeduction.description) {
                   setNewDeduction({
                     ...newDeduction,
-                    feedback: newDeduction.description
+                    defaultFeedback: newDeduction.description
                   });
                 }
               }}
               onKeyDown={(e) => {
                 // EnterキーまたはTabキーが押され、かつfeedbackが空の場合のみdescriptionをコピー
-                if ((e.key === 'Enter' || e.key === 'Tab') && !newDeduction.feedback && newDeduction.description) {
+                if ((e.key === 'Enter' || e.key === 'Tab') && !newDeduction.defaultFeedback && newDeduction.description) {
                   e.preventDefault(); // デフォルトの挙動(改行入力)を防ぐ
                   setNewDeduction({
                     ...newDeduction,
-                    feedback: newDeduction.description
+                    defaultFeedback: newDeduction.description
                   });
                 }
               }}
@@ -925,7 +1089,7 @@ function App() {
           <Button
             onClick={handleAddOrUpdateDeduction}
             variant="contained"
-            disabled={!newDeduction.description || !newDeduction.points || !newDeduction.feedback}
+            disabled={!newDeduction.description || !newDeduction.points || !newDeduction.defaultFeedback}
           >
             {editingDeduction ? '更新' : '追加'}
           </Button>
@@ -934,8 +1098,8 @@ function App() {
 
       {/* データ削除用の確認ダイアログ */}
       <Dialog
-        open={openDeleteDialog}
-        onClose={() => setOpenDeleteDialog(false)}
+        open={openDeleteAllDialog}
+        onClose={() => setOpenDeleteAllDialog(false)}
       >
         <DialogTitle>データの削除確認</DialogTitle>
         <DialogContent>
@@ -945,7 +1109,7 @@ function App() {
         </DialogContent>
         <DialogActions>
           <Button
-            onClick={() => setOpenDeleteDialog(false)}
+            onClick={() => setOpenDeleteAllDialog(false)}
           >
             キャンセル
           </Button>
