@@ -76,7 +76,7 @@ function App() {
    */
   const [deductionIdToPathMap, setDeductionIdToPathMap] = useState<Map<string, number[]>>(new Map());
 
-  const [pathToDeductionItemMap, setPathToDeductionItemMap] = useState<Map<number[], DeductionItem>>(new Map());
+  const [pathToDeductionItemMap, setPathToDeductionItemMap] = useState<Map<string, DeductionItem>>(new Map());
 
   // 選択中の学生のID
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
@@ -131,8 +131,8 @@ function App() {
     });
   };
 
-  const buildPathToDeductionItemMap = (item: DeductionItem, map: Map<number[], DeductionItem>, currentPath: number[]) => {
-    map.set(currentPath, item);
+  const buildPathToDeductionItemMap = (item: DeductionItem, map: Map<string, DeductionItem>, currentPath: number[]) => {
+    map.set(currentPath.join('-'), item);
     item.subDeductions.forEach((subItem, index) => {
       buildPathToDeductionItemMap(subItem, map, [...currentPath, index]);
     });
@@ -735,13 +735,15 @@ function App() {
     ) ?? false;
     const currentPath = deductionIdToPathMap.get(deductionItem.id);
     if (!currentPath) return <></>;
-    const parentNode = pathToDeductionItemMap.get(currentPath.slice(0, currentPath.length - 1));
+    const parentPath = currentPath.slice(0, currentPath.length - 1);
+    const parentNode = pathToDeductionItemMap.get(parentPath.join('-'));
     const siblings = parentNode !== undefined ? parentNode.subDeductions : null;
 
     const index = siblings !== null ? siblings.findIndex(s => s.id === deductionItem.id) : 0;
 
-    const isFirst = index === 0;
-    const isLast = index === (siblings !== null ? siblings.length - 1 : 0);
+    // currentPathが空の場合はrootノードのみ
+    const isFirst = currentPath.length === 0 || (index === 0);
+    const isLast = currentPath.length === 0 || (index === (siblings !== null ? siblings.length - 1 : 0));
 
     return (
       <>
