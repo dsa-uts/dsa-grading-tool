@@ -31,7 +31,7 @@ import ListItemText from '@mui/material/ListItemText';
 import Autocomplete from '@mui/material/Autocomplete';
 
 import * as XLSX from 'xlsx';
-import { DeductionItem, Student, RegisteredDeduction, AllData, CheckBoxState, RegisteredDeductionTree } from './types/all_type';
+import { DeductionItem, Student, RegisteredDeduction, AllData } from './types/all_type';
 
 function App() {
   const [allData, setAllData] = useState<AllData>({
@@ -89,19 +89,21 @@ function App() {
   // 減点項目追加用のダイアログの状態
   const [openDeductionDialog, setOpenDeductionDialog] = useState(false);
   const [newDeduction, setNewDeduction] = useState<{
-    parentPath: number[];
+    deductionId: string | null;
+    parentPath: number[] | null;
     description: string;
     points: number;
     defaultFeedback: string;
   }>({
-    parentPath: [],
+    deductionId: null,
+    parentPath: null,
     description: '',
     points: 0,
     defaultFeedback: ''
   });
 
-  // 減点項目編集用のstate追加
-  const [editingDeduction, setEditingDeduction] = useState<DeductionItem | null>(null);
+  // 編集モード
+  const [editMode, setEditMode] = useState(false);
 
   // 全データ削除用の確認ダイアログの状態
   const [openDeleteAllDialog, setOpenDeleteAllDialog] = useState(false);
@@ -139,14 +141,18 @@ function App() {
 
   // LocalStorageからデータを読む
   useEffect(() => {
-    console.log('useEffect');
+    console.log('useEffect - load data');
     const savedData = localStorage.getItem('dsa-grading-tool-data');
     if (savedData) {
       setAllData(JSON.parse(savedData));
     }
-
-    updateMaps();
   }, []);
+
+  // allDataが更新されたらマップを更新
+  useEffect(() => {
+    console.log('useEffect - update maps');
+    updateMaps();
+  }, [allData.deductionItemTree]);
 
   // データを全て削除する関数
   const handleDeleteAllData = () => {
@@ -167,7 +173,7 @@ function App() {
     });
     setSelectedStudentId('');
 
-    updateMaps();
+    // updateMaps();
 
     // ダイアログを閉じる
     setOpenDeleteAllDialog(false);
@@ -234,7 +240,7 @@ function App() {
         renderedNodeSet.add(currentNode.id);
       }
 
-      const indent = '  '.repeat(path.length - 1);
+      const indent = '  '.repeat(path.length);
       feedback += `${indent}${regDeduction.feedback}(-${deductionItem.points}points)\n`;
     }
 
@@ -327,14 +333,24 @@ function App() {
 
   // 減点項目の編集
   const handleEditDeduction = (item: DeductionItem) => {
-    setEditingDeduction(item);
-    const path = deductionIdToPathMap.get(item.id);
-    if (!path) return;
     setNewDeduction({
-      parentPath: path,
+      deductionId: item.id,
+      parentPath: null,
       description: item.description,
       points: item.points,
       defaultFeedback: item.defaultFeedback
+    });
+    setOpenDeductionDialog(true);
+  };
+
+  // 減点項目の新規追加
+  const handleAddDeduction = (parentPath: number[]) => {
+    setNewDeduction({
+      deductionId: null,
+      parentPath: parentPath,
+      description: '',
+      points: 0,
+      defaultFeedback: ''
     });
     setOpenDeductionDialog(true);
   };
@@ -377,17 +393,17 @@ function App() {
     localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
 
     // マップを更新
-    updateMaps();
+    // updateMaps();
   };
 
   // 減点項目を追加または更新
-  const handleAddOrUpdateDeduction = () => {
-    if (!newDeduction.description || !newDeduction.points) return;
-
-    if (editingDeduction) {
+  const handleAddOrUpdateDeduction = (deductionId: string | null, parentPath: number[] | null, description: string, points: number, defaultFeedback: string) => {
+    if (deductionId && !parentPath) {
       // 編集モード
-      const targetPath = deductionIdToPathMap.get(editingDeduction.id);
+      const targetPath = deductionIdToPathMap.get(deductionId);
       if (!targetPath) return;
+      const subDeductions = deductionIdToItemMap.get(deductionId)?.subDeductions;
+      if (!subDeductions) return;
 
       let newDeductionItemTree = allData.deductionItemTree;
       let currentNode = newDeductionItemTree;
@@ -395,10 +411,11 @@ function App() {
         currentNode = currentNode.subDeductions[targetPath[i]];
       }
       currentNode.subDeductions[targetPath[targetPath.length - 1]] = {
-        ...editingDeduction,
-        description: newDeduction.description,
-        points: newDeduction.points,
-        defaultFeedback: newDeduction.defaultFeedback
+        id: deductionId,
+        description: description,
+        points: points,
+        defaultFeedback: defaultFeedback,
+        subDeductions: []
       };
 
       setAllData({
@@ -406,19 +423,19 @@ function App() {
         deductionItemTree: newDeductionItemTree
       });
       localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
-    } else {
+    } else if (!deductionId && parentPath) {
       // 新規追加モード
       const newItem: DeductionItem = {
         id: `deduction-${Date.now()}`,
-        description: newDeduction.description,
-        points: newDeduction.points,
-        defaultFeedback: newDeduction.defaultFeedback,
+        description: description,
+        points: points,
+        defaultFeedback: defaultFeedback,
         subDeductions: []
       };
       let deductionItemTree = allData.deductionItemTree;
       let currentNode = deductionItemTree;
-      for (let i = 0; i < newDeduction.parentPath.length; ++i) {
-        currentNode = currentNode.subDeductions[newDeduction.parentPath[i]];
+      for (let i = 0; i < parentPath.length; ++i) {
+        currentNode = currentNode.subDeductions[parentPath[i]];
       }
       currentNode.subDeductions.push(newItem);
 
@@ -429,11 +446,12 @@ function App() {
       localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
 
       // マップを更新
-      updateMaps();
+      // updateMaps();
+    } else {
+      console.error('Invalid deductionId and parentPath', deductionId, parentPath);
     }
 
     setOpenDeductionDialog(false);
-    setEditingDeduction(null);
   };
 
   // subDeductionsの並び替え
@@ -471,9 +489,9 @@ function App() {
   // 減点項目のダイアログを閉じる
   const handleCloseDeductionDialog = () => {
     setOpenDeductionDialog(false);
-    setEditingDeduction(null);
     setNewDeduction({
-      parentPath: [],
+      deductionId: null,
+      parentPath: null,
       description: '',
       points: 0,
       defaultFeedback: ''
@@ -515,7 +533,7 @@ function App() {
     localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
 
     // マップを更新
-    updateMaps();
+    // updateMaps();
   }
 
   // 追加減点を更新する関数
@@ -533,7 +551,7 @@ function App() {
   };
 
   // 追加講評(自由記述)を更新する関数
-  const handleAdditionalNotesChange = (value: string) => {
+  const handleAdditionalFeedbackChange = (value: string) => {
     const newStudents = allData.studentList.map(student =>
       student.id === selectedStudentId
         ? { ...student, additionalFeedback: value }
@@ -666,7 +684,7 @@ function App() {
         });
         localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
         // マップを更新
-        updateMaps();
+        // updateMaps();
       } catch (error) {
         console.error('Invalid JSON file', error);
         alert('無効なJSONファイルです');
@@ -689,6 +707,93 @@ function App() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }
+
+  // 再帰的にDeductionItemTreeをレンダリングするコンポーネント
+  const DeductionItemTreeRenderer = ({
+    deductionItem,
+    level = 0,
+    parentChecked = false
+  }: {
+    deductionItem: DeductionItem;
+    level?: number;
+    parentChecked?: boolean;
+  }) => {
+    const student = allData.studentList.find(s => s.id === selectedStudentId);
+    const isChecked = student?.registeredDeductionList.some(
+      d => d.deductionId === deductionItem.id
+    ) ?? false;
+    const currentPath = deductionIdToPathMap.get(deductionItem.id);
+    if (!currentPath) return <></>;
+
+    return (
+      <>
+        <ListItem
+          dense
+          sx={{ pl: level * 4 }}
+          secondaryAction={
+            editMode &&
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <IconButton
+                edge="end"
+                onClick={() => moveDeductionItem(currentPath, 'up')}
+              >
+                <KeyboardArrowUpIcon />
+              </IconButton>
+              <IconButton
+                edge="end"
+                onClick={() => moveDeductionItem(currentPath, 'down')}
+              >
+                <KeyboardArrowDownIcon />
+              </IconButton>
+              <IconButton
+                edge="end"
+                onClick={() => handleEditDeduction(deductionItem)}
+              >
+                <EditIcon />
+              </IconButton>
+              <IconButton
+                edge="end"
+                onClick={() => {
+                  setOpenDeleteDeductionDialog(true);
+                  setDeletingDeductionId(deductionItem.id);
+                }}
+              >
+                <DeleteIcon />
+              </IconButton>
+            </Box>
+          }
+        >
+          <Checkbox
+            edge="start"
+            checked={isChecked}
+            disabled={parentChecked}
+            onChange={() => handleDeductionToggle(deductionItem.id)}
+          />
+          <ListItemText
+            primary={`${deductionItem.description} (${deductionItem.points} points)`}
+          />
+        </ListItem>
+        {deductionItem.subDeductions.map((subItem) => (
+          <DeductionItemTreeRenderer
+            key={subItem.id}
+            deductionItem={subItem}
+            level={level + 1}
+            parentChecked={isChecked || parentChecked}
+          />
+        ))}
+        {editMode &&
+          <ListItem sx={{ pl: (level + 1) * 4 }}>
+            <IconButton
+              edge="start"
+              onClick={() => handleAddDeduction(currentPath)}
+            >
+              <AddIcon />
+            </IconButton>
+          </ListItem>
+        }
+      </>
+    );
+  };
 
   return (
     <div className="App">
@@ -786,42 +891,48 @@ function App() {
             </Button>
           </Tooltip>
           <Tooltip title="採点途中までのデータをセーブします" arrow>
-            <Button
-              variant="contained"
-              color="secondary"
-              startIcon={<SaveIcon />}
-              onClick={handleSaveData}
-              disabled={allData.studentList.length === 0 && allData.deductionItemTree.subDeductions.length === 0}
-            >
-              Save Data...
-            </Button>
+            <span>
+              <Button
+                variant="contained"
+                color="secondary"
+                startIcon={<SaveIcon />}
+                onClick={handleSaveData}
+                disabled={allData.studentList.length === 0 && allData.deductionItemTree.subDeductions.length === 0}
+              >
+                Save Data...
+              </Button>
+            </span>
           </Tooltip>
           <Tooltip title="セーブした採点途中のデータをロードします" arrow>
-            <Button
-              variant="contained"
-              component="label"
-              color="secondary"
-              startIcon={<UploadIcon />}
-            >
-              Load Data...
-              <input
-                type="file"
-                accept=".json"
-                hidden
-                onChange={handleLoadData}
-              />
-            </Button>
+            <span>
+              <Button
+                variant="contained"
+                component="label"
+                color="secondary"
+                startIcon={<UploadIcon />}
+              >
+                Load Data...
+                <input
+                  type="file"
+                  accept=".json"
+                  hidden
+                  onChange={handleLoadData}
+                />
+              </Button>
+            </span>
           </Tooltip>
           <Tooltip title="現在のデータを全て削除します" arrow>
-            <Button
-              variant="contained"
-              color="error"
-              startIcon={<DeleteIcon />}
-              onClick={() => setOpenDeleteAllDialog(true)}
-              disabled={allData.studentList.length === 0 && allData.deductionItemTree.subDeductions.length === 0}
-            >
-              Delete Data...
-            </Button>
+            <span>
+              <Button
+                variant="contained"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={() => setOpenDeleteAllDialog(true)}
+                disabled={allData.studentList.length === 0 && allData.deductionItemTree.subDeductions.length === 0}
+              >
+                Delete Data...
+              </Button>
+            </span>
           </Tooltip>
         </Box>
 
@@ -875,51 +986,57 @@ function App() {
           <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
             <Button
               variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => setOpenDeductionDialog(true)}
+              startIcon={<EditIcon />}
+              onClick={() => setEditMode(!editMode)}
+              color={editMode ? 'error' : 'primary'}
             >
-              減点項目を追加
+              編集
             </Button>
-            <Tooltip title="減点項目のリストをJSONファイルからインポートします。{description, point, feedback}の3つのキーを持つ配列である必要があります。">
-              <Button
-                variant="contained"
-                component="label"
-                color="secondary"
-                startIcon={<UploadIcon />}
-              >
-                減点項目リストをインポート
-                <input
-                  type="file"
-                  accept=".json"
-                  hidden
-                  onChange={handleImportDeductions}
-                />
-              </Button>
-            </Tooltip>
-            <Tooltip title="減点項目のリストをJSONファイルとしてエクスポートします。">
-              <Button
-                variant="contained"
-                color="secondary"
-                startIcon={<DownloadIcon />}
-                onClick={handleExportDeductions}
-              >
-                減点項目リストをエクスポート
-              </Button>
-            </Tooltip>
+            {
+              editMode &&
+              <>
+                <Tooltip title="減点項目のリストをJSONファイルからインポートします。{description, point, feedback}の3つのキーを持つ配列である必要があります。">
+                  <Button
+                    variant="contained"
+                    component="label"
+                    color="secondary"
+                    startIcon={<UploadIcon />}
+                  >
+                    減点項目リストをインポート
+                    <input
+                      type="file"
+                      accept=".json"
+                      hidden
+                      onChange={handleImportDeductions}
+                    />
+                  </Button>
+                </Tooltip>
+                <Tooltip title="減点項目のリストをJSONファイルとしてエクスポートします。">
+                  <Button
+                    variant="contained"
+                    color="secondary"
+                    startIcon={<DownloadIcon />}
+                    onClick={handleExportDeductions}
+                  >
+                    減点項目リストをエクスポート
+                  </Button>
+                </Tooltip>
+              </>
+            }
           </Box>
           <Box sx={{ mt: 4 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <IconButton
                 onClick={() => moveToAdjacentStudent('prev')}
-                disabled={!selectedStudent || students.findIndex(s => s.id === selectedStudent) === 0}
+                disabled={!selectedStudentId || allData.studentList.findIndex(s => s.id === selectedStudentId) === 0}
               >
                 <KeyboardArrowLeftIcon />
               </IconButton>
               <Typography variant="h5" gutterBottom>
-                {students.find(s => s.id === selectedStudent)?.name} ({students.find(s => s.id === selectedStudent)?.studentId}) Score: {' '}
-                {students.find(s => s.id === selectedStudent) ? (
+                {allData.studentList.find(s => s.id === selectedStudentId)?.name} ({allData.studentList.find(s => s.id === selectedStudentId)?.studentId}) Score: {' '}
+                {allData.studentList.find(s => s.id === selectedStudentId) ? (
                   <ScoreDisplay
-                    student={students.find(s => s.id === selectedStudent)!}
+                    student={allData.studentList.find(s => s.id === selectedStudentId)!}
                   />
                 ) : (
                   <Skeleton variant="text" width={100} height={30} />
@@ -927,54 +1044,13 @@ function App() {
               </Typography>
               <IconButton
                 onClick={() => moveToAdjacentStudent('next')}
-                disabled={!selectedStudent || students.findIndex(s => s.id === selectedStudent) === students.length - 1}
+                disabled={!selectedStudentId || allData.studentList.findIndex(s => s.id === selectedStudentId) === allData.studentList.length - 1}
               >
                 <KeyboardArrowRightIcon />
               </IconButton>
             </Box>
             <List>
-              {deductionItems.map((item, index) => (
-                <ListItem
-                  key={item.id}
-                  dense
-                  secondaryAction={
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <IconButton
-                        edge="end"
-                        onClick={() => moveDeductionItem(index, 'up')}
-                        disabled={index === 0}
-                      >
-                        <KeyboardArrowUpIcon />
-                      </IconButton>
-                      <IconButton
-                        edge="end"
-                        onClick={() => moveDeductionItem(index, 'down')}
-                        disabled={index === deductionItems.length - 1}
-                      >
-                        <KeyboardArrowDownIcon />
-                      </IconButton>
-                      <IconButton edge="end" onClick={() => handleEditDeduction(item)}>
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton edge="end" onClick={() => {
-                        setOpenDeleteDeductionDialog(true);
-                        setDeletingDeductionId(item.id);
-                      }}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </Box>
-                  }
-                >
-                  <Checkbox
-                    edge="start"
-                    checked={students.find(s => s.id === selectedStudent)?.deductions.includes(item.id) ?? false}
-                    onChange={() => handleDeductionToggle(item.id)}
-                  />
-                  <ListItemText
-                    primary={`${item.description} (-${item.points} points)`}
-                  />
-                </ListItem>
-              ))}
+              <DeductionItemTreeRenderer deductionItem={allData.deductionItemTree} />
             </List>
 
             <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
@@ -983,7 +1059,7 @@ function App() {
             <TextField
               multiline
               rows={4}
-              value={students.find(s => s.id === selectedStudent) ? displayGeneratedFeedback(students.find(s => s.id === selectedStudent)!) : ''}
+              value={allData.studentList.find(s => s.id === selectedStudentId) ? displayGeneratedFeedback(allData.studentList.find(s => s.id === selectedStudentId)!) : ''}
               fullWidth
               variant="outlined"
               disabled
@@ -1000,7 +1076,7 @@ function App() {
             <TextField
               label="追加減点"
               type="number"
-              value={students.find(s => s.id === selectedStudent)?.additionalDeduction ?? 0}
+              value={allData.studentList.find(s => s.id === selectedStudentId)?.additionalDeduction ?? 0}
               onChange={(e) => handleAdditionalDeductionChange(Number(e.target.value))}
               fullWidth
               variant="outlined"
@@ -1013,8 +1089,8 @@ function App() {
               label="自由記述欄"
               multiline
               rows={4}
-              value={students.find(s => s.id === selectedStudent)?.additionalNotes ?? ''}
-              onChange={(e) => handleAdditionalNotesChange(e.target.value)}
+              value={allData.studentList.find(s => s.id === selectedStudentId)?.additionalFeedback ?? ''}
+              onChange={(e) => handleAdditionalFeedbackChange(e.target.value)}
               fullWidth
               variant="outlined"
             />
@@ -1025,7 +1101,7 @@ function App() {
       {/* 減点項目追加ダイアログ */}
       <Dialog open={openDeductionDialog} onClose={handleCloseDeductionDialog}>
         <DialogTitle>
-          {editingDeduction ? '減点項目を編集' : '減点項目を追加'}
+          {newDeduction.deductionId ? '減点項目を編集' : '減点項目を追加'}
         </DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
@@ -1087,11 +1163,11 @@ function App() {
         <DialogActions>
           <Button onClick={handleCloseDeductionDialog}>キャンセル</Button>
           <Button
-            onClick={handleAddOrUpdateDeduction}
+            onClick={() => handleAddOrUpdateDeduction(newDeduction.deductionId, newDeduction.parentPath, newDeduction.description, newDeduction.points, newDeduction.defaultFeedback)}
             variant="contained"
             disabled={!newDeduction.description || !newDeduction.points || !newDeduction.defaultFeedback}
           >
-            {editingDeduction ? '更新' : '追加'}
+            {newDeduction.deductionId ? '更新' : '追加'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1155,15 +1231,15 @@ function App() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
           <IconButton
             onClick={() => moveToAdjacentStudent('prev', true)}
-            disabled={!selectedStudent || students.findIndex(s => s.id === selectedStudent) === 0}
+            disabled={!selectedStudentId || allData.studentList.findIndex(s => s.id === selectedStudentId) === 0}
           >
             <KeyboardArrowLeftIcon />
           </IconButton>
           <Typography variant="h5" gutterBottom>
-            {students.find(s => s.id === selectedStudent)?.name} ({students.find(s => s.id === selectedStudent)?.studentId}) : {' '}
-            {students.find(s => s.id === selectedStudent) ? (
+            {allData.studentList.find(s => s.id === selectedStudentId)?.name} ({allData.studentList.find(s => s.id === selectedStudentId)?.studentId}) : {' '}
+            {allData.studentList.find(s => s.id === selectedStudentId) ? (
               <ScoreDisplay
-                student={students.find(s => s.id === selectedStudent)!}
+                student={allData.studentList.find(s => s.id === selectedStudentId)!}
               />
             ) : (
               <Skeleton variant="text" width={100} height={30} />
@@ -1171,7 +1247,7 @@ function App() {
           </Typography>
           <IconButton
             onClick={() => moveToAdjacentStudent('next', true)}
-            disabled={!selectedStudent || students.findIndex(s => s.id === selectedStudent) === students.length - 1}
+            disabled={!selectedStudentId || allData.studentList.findIndex(s => s.id === selectedStudentId) === allData.studentList.length - 1}
           >
             <KeyboardArrowRightIcon />
           </IconButton>
@@ -1181,7 +1257,7 @@ function App() {
           color="success"
           startIcon={<DownloadIcon />}
           onClick={handleExportResults}
-          disabled={students.length === 0}
+          disabled={allData.studentList.length === 0}
         >
           採点結果をエクスポート(.xlsx)
         </Button>

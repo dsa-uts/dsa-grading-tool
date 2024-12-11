@@ -36,19 +36,3 @@ export type AllData = {
   deductionItemTree: DeductionItem;
   studentList: Student[];
 }
-
-// 現在採点対象になっている学生のチェックボックスリストの状態
-export type CheckBoxState = {
-  deductionId: string; // DeductionItem.id
-  isChecked: boolean; // チェックボックスのチェック状態
-  isDisabled: boolean; // 親のチェックボックスがチェックされている場合はtrue
-  isExpanded: boolean; // 子のチェックボックスが展開されている場合はtrue
-  subCheckBoxStateList: CheckBoxState[]; // 子のチェックボックスの状態
-  modifiedFeedback: string; // その学生だけに修正される講評
-}
-
-export type RegisteredDeductionTree = {
-  id: number;
-  registeredDeduction: RegisteredDeduction | null;
-  children: RegisteredDeductionTree[];
-}
