@@ -76,6 +76,8 @@ function App() {
    */
   const [deductionIdToPathMap, setDeductionIdToPathMap] = useState<Map<string, number[]>>(new Map());
 
+  const [pathToDeductionItemMap, setPathToDeductionItemMap] = useState<Map<number[], DeductionItem>>(new Map());
+
   // 選択中の学生のID
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
 
@@ -129,6 +131,13 @@ function App() {
     });
   };
 
+  const buildPathToDeductionItemMap = (item: DeductionItem, map: Map<number[], DeductionItem>, currentPath: number[]) => {
+    map.set(currentPath, item);
+    item.subDeductions.forEach((subItem, index) => {
+      buildPathToDeductionItemMap(subItem, map, [...currentPath, index]);
+    });
+  }
+
   const updateMaps = () => {
     const initialDeductionIdToItemMap = new Map();
     buildDeductionMap(allData.deductionItemTree, initialDeductionIdToItemMap);
@@ -137,22 +146,39 @@ function App() {
     const initialDeductionIdToPathMap = new Map();
     buildDeductionIdToPathMap(allData.deductionItemTree, initialDeductionIdToPathMap, []);
     setDeductionIdToPathMap(initialDeductionIdToPathMap);
+
+    const initialPathToDeductionItemMap = new Map();
+    buildPathToDeductionItemMap(allData.deductionItemTree, initialPathToDeductionItemMap, []);
+    setPathToDeductionItemMap(initialPathToDeductionItemMap);
   }
 
-  // LocalStorageからデータを読む
+  // データロード用のuseEffect
   useEffect(() => {
     console.log('useEffect - load data');
     const savedData = localStorage.getItem('dsa-grading-tool-data');
+    console.log('savedData', savedData);
     if (savedData) {
-      setAllData(JSON.parse(savedData));
-    }
-  }, []);
+      const parsedData = JSON.parse(savedData);
+      setAllData(parsedData);
 
-  // allDataが更新されたらマップを更新
+      // マップを更新
+      updateMaps();
+    }
+  }, []); // マウント時のみ実行
+
+  // データ保存用のuseEffect
   useEffect(() => {
-    console.log('useEffect - update maps');
+    // 初期値の場合は保存しない
+    if (allData.studentList.length === 0 &&
+      allData.deductionItemTree.subDeductions.length === 0
+    ) {
+      console.log('useEffect - skip saving data');
+      return;
+    }
     updateMaps();
-  }, [allData.deductionItemTree]);
+    console.log('useEffect - save data');
+    localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
+  }, [allData]);
 
   // データを全て削除する関数
   const handleDeleteAllData = () => {
@@ -362,10 +388,6 @@ function App() {
 
     // path = [0, 1, 2] の場合、
     // pathが[0, 1, 2,...]で始まる減点項目全て削除する
-    // [0, 1, 2,...]で始まる減点項目のidリストをdeductionIdToPathMapから取得
-    const targetIds = Array.from(deductionIdToPathMap.entries()).filter(([id, path]) => {
-      return path.length >= targetPath.length && path.slice(0, targetPath.length).every((value, index) => value === targetPath[index]);
-    }).map(([id, path]) => id);
 
     // DeductionItemTreeを更新する
     let newDeductionItemTree = allData.deductionItemTree;
@@ -381,19 +403,12 @@ function App() {
       deductionItemTree: newDeductionItemTree
     });
 
-    // 学生の採点項目からも削除
-    const updatedStudents = allData.studentList.map(student => ({
-      ...student,
-      registeredDeductionList: student.registeredDeductionList.filter(regDeduction => !targetIds.includes(regDeduction.deductionId))
-    }));
-    setAllData({
-      ...allData,
-      studentList: updatedStudents
+    // 学生の採点データとの整合性を保持する
+    const newStudents = allData.studentList.map(student => {
+      const registeredDeductionList = student.registeredDeductionList.filter(regDeduction => deductionIdToItemMap.has(regDeduction.deductionId));
+      return { ...student, registeredDeductionList };
     });
-    localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
-
-    // マップを更新
-    // updateMaps();
+    setAllData({ ...allData, studentList: newStudents });
   };
 
   // 減点項目を追加または更新
@@ -422,7 +437,6 @@ function App() {
         ...allData,
         deductionItemTree: newDeductionItemTree
       });
-      localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
     } else if (!deductionId && parentPath) {
       // 新規追加モード
       const newItem: DeductionItem = {
@@ -443,10 +457,6 @@ function App() {
         ...allData,
         deductionItemTree: deductionItemTree
       });
-      localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
-
-      // マップを更新
-      // updateMaps();
     } else {
       console.error('Invalid deductionId and parentPath', deductionId, parentPath);
     }
@@ -480,10 +490,6 @@ function App() {
       ...allData,
       deductionItemTree: deductionItemTree
     });
-    localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
-
-    // マップを更新
-    updateMaps();
   }
 
   // 減点項目のダイアログを閉じる
@@ -530,10 +536,6 @@ function App() {
       ...allData,
       studentList: newStudents
     });
-    localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
-
-    // マップを更新
-    // updateMaps();
   }
 
   // 追加減点を更新する関数
@@ -547,7 +549,6 @@ function App() {
       ...allData,
       studentList: newStudents
     });
-    localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
   };
 
   // 追加講評(自由記述)を更新する関数
@@ -561,7 +562,6 @@ function App() {
       ...allData,
       studentList: newStudents
     });
-    localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
   };
 
   // Excelファイルを読み込む
@@ -597,7 +597,6 @@ function App() {
         ...allData,
         studentList: updatedStudents
       });
-      localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
     };
     reader.readAsArrayBuffer(file);
   }
@@ -682,9 +681,6 @@ function App() {
           ...allData,
           deductionItemTree: data
         });
-        localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
-        // マップを更新
-        // updateMaps();
       } catch (error) {
         console.error('Invalid JSON file', error);
         alert('無効なJSONファイルです');
@@ -724,6 +720,13 @@ function App() {
     ) ?? false;
     const currentPath = deductionIdToPathMap.get(deductionItem.id);
     if (!currentPath) return <></>;
+    const parentNode = pathToDeductionItemMap.get(currentPath.slice(0, currentPath.length - 1));
+    const siblings = parentNode !== undefined ? parentNode.subDeductions : null;
+
+    const index = siblings !== null ? siblings.findIndex(s => s.id === deductionItem.id) : 0;
+
+    const isFirst = index === 0;
+    const isLast = index === (siblings !== null ? siblings.length - 1 : 0);
 
     return (
       <>
@@ -735,12 +738,14 @@ function App() {
             <Box sx={{ display: 'flex', gap: 1 }}>
               <IconButton
                 edge="end"
+                disabled={isFirst}
                 onClick={() => moveDeductionItem(currentPath, 'up')}
               >
                 <KeyboardArrowUpIcon />
               </IconButton>
               <IconButton
                 edge="end"
+                disabled={isLast}
                 onClick={() => moveDeductionItem(currentPath, 'down')}
               >
                 <KeyboardArrowDownIcon />
