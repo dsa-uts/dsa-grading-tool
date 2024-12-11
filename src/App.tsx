@@ -524,6 +524,21 @@ function App() {
       } else {
         // チェックを入れる場合
         newDeductions = [...student.registeredDeductionList, { deductionId, feedback: deduction.defaultFeedback }];
+
+        // 子の減点項目のチェックを全て外す
+        let deleteList: string[] = [];
+        const pathOfAddedDeduction = deductionIdToPathMap.get(deductionId);
+        if (pathOfAddedDeduction) {
+          for (const regDeduction of newDeductions) {
+            const pathOfRegDeduction = deductionIdToPathMap.get(regDeduction.deductionId);
+            // pathOfRegDeduction !== pathOfAddedDeduction かつ
+            // pathOfRegDeductionのprefixがpathOfAddedDeductionと一致している場合、deleteListに追加
+            if (pathOfRegDeduction && pathOfRegDeduction.length > pathOfAddedDeduction.length && pathOfRegDeduction.slice(0, pathOfAddedDeduction.length).every((value, index) => value === pathOfAddedDeduction[index])) {
+              deleteList.push(regDeduction.deductionId);
+            }
+          }
+        }
+        newDeductions = newDeductions.filter(regDeduction => !deleteList.includes(regDeduction.deductionId));
       }
 
       return {
