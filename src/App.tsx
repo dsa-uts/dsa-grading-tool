@@ -326,6 +326,7 @@ function App() {
   const ScoreDisplay = ({ student }: { student: Student }) => {
     const score = calculateScore(student);
     const lessThanZero = score < 0;
+    const isSubmitted = student.isSubmitted;
 
     return (
       <Typography
@@ -336,7 +337,7 @@ function App() {
           cursor: lessThanZero ? 'help' : 'inherit'
         }}
       >
-        {lessThanZero ? (
+        {isSubmitted === true ? (lessThanZero ? (
           <Tooltip
             title="減点により0点未満になりましたが、0点として表示されています"
             arrow
@@ -345,6 +346,8 @@ function App() {
           </Tooltip>
         ) : (
           <span>{score.toFixed(2)}</span>
+        )) : (
+          <span>--</span>
         )}
         {' / '}{allData.totalPoints.toFixed(2)}
       </Typography>
