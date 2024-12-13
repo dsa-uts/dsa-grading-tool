@@ -266,7 +266,8 @@ function App() {
         renderedNodeSet.add(currentNode.id);
       }
 
-      const indent = '  '.repeat(path.length);
+      // rootの場合はpath.length - 1が-1になるが、その場合は0とする。
+      const indent = '  '.repeat(Math.max(0, path.length - 1));
       feedback += `${indent}${regDeduction.feedback}(-${deductionItem.points}points)\n`;
     }
 
