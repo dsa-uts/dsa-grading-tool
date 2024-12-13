@@ -261,6 +261,9 @@ function App() {
 
   // スコアを計算する関数
   const calculateScore = (student: Student) => {
+    if (student.isSubmitted === false) {
+      return 0;
+    }
     const deductionTotal = student.registeredDeductionList.reduce((acc, regDeduction) => {
       const deductionItem = deductionIdToItemMap.get(regDeduction.deductionId);
       if (deductionItem) {
@@ -273,6 +276,10 @@ function App() {
 
   const displayGeneratedFeedback = (student: Student) => {
     let feedback = '';
+
+    if (student.isSubmitted === false) {
+      return feedback;
+    }
 
     // student.registeredDeductionListを、pathの辞書順でソートする
     // 例えば、("1" -> "1-1"), ("2" -> "2-1"), ("1-1" -> "1-1-1")なら、
@@ -310,11 +317,8 @@ function App() {
     }
 
     // 自由記述フィードバックの追加
-    if (feedback !== '') {
-      feedback += '\n' + student.additionalFeedback;
-    } else {
-      feedback = student.additionalFeedback;
-    }
+    feedback += student.additionalFeedback;
+
     return feedback;
   }
 
@@ -661,8 +665,8 @@ function App() {
     const exportData = allData.studentList.map(student => ({
       '学籍番号': student.studentId,
       '氏名': student.name,
-      '得点': Math.max(calculateScore(student), 0),
-      '講評': displayGeneratedFeedback(student).trim()
+      '得点': student.isSubmitted ? Math.max(calculateScore(student), 0) : '',
+      '講評': student.isSubmitted ? displayGeneratedFeedback(student).trim() : ''
     }));
 
     // ワークブックとワークシートの作成
@@ -848,7 +852,13 @@ function App() {
                   </Typography>
                 </Box>
               ) : (
-                `${deductionItem.description} (${deductionItem.points} points)`
+                <Typography
+                  sx={{
+                    color: parentChecked ? 'text.disabled' : 'text.primary'
+                  }}
+                >
+                  {`${deductionItem.description} (${deductionItem.points} points)`}
+                </Typography>
               )
             }
           />
@@ -1130,7 +1140,34 @@ function App() {
               </IconButton>
             </Box>
             <List>
-              <DeductionItemTreeRenderer deductionItem={allData.deductionItemTree} />
+              {/* 未提出や何等かの理由で評価しない場合、そのstudentのisSubmittedをfalseにする。そのためのチェックリスト */}
+              <ListItem
+                dense
+                sx={{ pl: 0 }}
+              >
+                <Checkbox
+                  edge="start"
+                  checked={(allData.studentList.find(s => s.id === selectedStudentId)?.isSubmitted ?? false) === false}
+                  onChange={() => {
+                    const newStudents = allData.studentList.map(student =>
+                      student.id === selectedStudentId
+                        ? { ...student, isSubmitted: !student.isSubmitted }
+                        : student
+                    );
+                    setAllData({ ...allData, studentList: newStudents });
+                    localStorage.setItem('dsa-grading-tool-data', JSON.stringify(allData));
+                  }}
+                />
+                <ListItemText
+                  primary={
+                    <Typography>未提出</Typography>
+                  }
+                />
+              </ListItem>
+              {
+                (allData.studentList.find(s => s.id === selectedStudentId)?.isSubmitted ?? false) === true &&
+                <DeductionItemTreeRenderer deductionItem={allData.deductionItemTree} />
+              }
             </List>
 
             <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
