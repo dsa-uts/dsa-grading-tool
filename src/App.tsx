@@ -116,6 +116,44 @@ function App() {
   // 削除する減点項目のIDを保持するstate
   const [deletingDeductionId, setDeletingDeductionId] = useState<string>('');
 
+  // 学生毎にカスタマイズされたフィードバックを編集するためのstate
+  const [editingFeedback, setEditingFeedback] = useState<{
+    deductionId: string;
+    feedback: string;
+  } | null>(null);
+
+  const [openFeedbackDialog, setOpenFeedbackDialog] = useState(false);
+
+  const handleOpenFeedbackDialog = (deductionId: string, feedback: string) => {
+    setEditingFeedback({
+      deductionId: deductionId,
+      feedback: feedback
+    });
+    setOpenFeedbackDialog(true);
+  }
+
+  const handleSaveFeedback = () => {
+    if (!editingFeedback) return;
+
+    const newStudents = allData.studentList.map(student => {
+      if (student.id !== selectedStudentId) return student;
+      return {
+        ...student,
+        registeredDeductionList: student.registeredDeductionList.map(rd =>
+          rd.deductionId === editingFeedback.deductionId
+            ? { ...rd, feedback: editingFeedback.feedback }
+            : rd
+        )
+      };
+    });
+    setAllData(prevData => ({
+      ...prevData,
+      studentList: newStudents
+    }));
+    setEditingFeedback(null);
+    setOpenFeedbackDialog(false);
+  }
+
   // DeductionItemTreeからMapを構築する再帰的な関数
   const buildDeductionMap = (item: DeductionItem, map: Map<string, DeductionItem>) => {
     map.set(item.id, item);
@@ -731,9 +769,8 @@ function App() {
     parentChecked?: boolean;
   }) => {
     const student = allData.studentList.find(s => s.id === selectedStudentId);
-    const isChecked = student?.registeredDeductionList.some(
-      d => d.deductionId === deductionItem.id
-    ) ?? false;
+    const regDeduction = student?.registeredDeductionList.find(d => d.deductionId === deductionItem.id);
+    const isChecked = regDeduction !== undefined;
     const currentPath = deductionIdToPathMap.get(deductionItem.id);
     if (!currentPath) return <></>;
     const parentPath = currentPath.slice(0, currentPath.length - 1);
@@ -793,7 +830,27 @@ function App() {
             onChange={() => handleDeductionToggle(deductionItem.id)}
           />
           <ListItemText
-            primary={`${deductionItem.description} (${deductionItem.points} points)`}
+            primary={
+              isChecked ? (
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Typography
+                    onClick={() => handleOpenFeedbackDialog(deductionItem.id, regDeduction.feedback)}
+                    sx={{
+                      color: 'error.main',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        textDecoration: 'underline'
+                      },
+                      width: '600px'
+                    }}
+                  >
+                    {regDeduction.feedback} (-{deductionItem.points} points)
+                  </Typography>
+                </Box>
+              ) : (
+                `${deductionItem.description} (${deductionItem.points} points)`
+              )
+            }
           />
         </ListItem>
         {deductionItem.subDeductions.map((subItem) => (
@@ -1246,6 +1303,31 @@ function App() {
             setOpenDeleteDeductionDialog(false);
             setDeletingDeductionId('');
           }} variant="contained" color="error">削除</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* カスタマイズフィードバック編集ダイアログ */}
+      <Dialog
+        open={openFeedbackDialog}
+        onClose={() => setOpenFeedbackDialog(false)}
+      >
+        <DialogTitle>Edit Customized Feedback</DialogTitle>
+        <DialogContent>
+          <TextField
+            multiline
+            rows={4}
+            value={editingFeedback?.feedback || ''}
+            onChange={(e) => setEditingFeedback(prev => 
+              prev ? {...prev, feedback: e.target.value} : null
+            )}
+            fullWidth
+            variant="outlined"
+            sx={{ mt:2 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenFeedbackDialog(false)}>キャンセル</Button>
+          <Button onClick={handleSaveFeedback} variant="contained">保存</Button>
         </DialogActions>
       </Dialog>
 
