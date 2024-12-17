@@ -306,14 +306,14 @@ function App() {
         if (renderedNodeSet.has(currentNode.id)) {
           continue;
         }
-        const indent = '  '.repeat(i);
-        feedback += `${indent}${currentNode.description}:\n`;
+        const indent = '    '.repeat(i);
+        feedback += `${indent}・${currentNode.description}:\n`;
         renderedNodeSet.add(currentNode.id);
       }
 
       // rootの場合はpath.length - 1が-1になるが、その場合は0とする。
-      const indent = '  '.repeat(Math.max(0, path.length - 1));
-      feedback += `${indent}${regDeduction.feedback}(-${deductionItem.points}points)\n`;
+      const indent = '    '.repeat(Math.max(0, path.length - 1));
+      feedback += `${indent}・${regDeduction.feedback}(-${deductionItem.points}points)\n`;
     }
 
     // 自由記述フィードバックの追加
