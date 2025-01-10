@@ -1179,6 +1179,7 @@ function App() {
             <TextField
               multiline
               rows={4}
+              maxRows={30}
               value={allData.studentList.find(s => s.id === selectedStudentId) ? displayGeneratedFeedback(allData.studentList.find(s => s.id === selectedStudentId)!) : ''}
               fullWidth
               variant="outlined"
