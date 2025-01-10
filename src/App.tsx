@@ -1178,7 +1178,7 @@ function App() {
             </Typography>
             <TextField
               multiline
-              rows={4}
+              minRows={4}
               maxRows={30}
               value={allData.studentList.find(s => s.id === selectedStudentId) ? displayGeneratedFeedback(allData.studentList.find(s => s.id === selectedStudentId)!) : ''}
               fullWidth
