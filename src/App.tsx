@@ -430,6 +430,7 @@ function App() {
   // 減点項目の削除
   const handleDeleteDeduction = (deductionId: string) => {
     const targetPath = deductionIdToPathMap.get(deductionId);
+    console.log('targetPath', targetPath);
     if (!targetPath) return;
 
     // path = [0, 1, 2] の場合、
@@ -463,25 +464,15 @@ function App() {
       // 編集モード
       const targetPath = deductionIdToPathMap.get(deductionId);
       if (!targetPath) return;
-      const subDeductions = deductionIdToItemMap.get(deductionId)?.subDeductions;
-      if (!subDeductions) return;
-
-      let newDeductionItemTree = allData.deductionItemTree;
-      let currentNode = newDeductionItemTree;
-      for (let i = 0; i < targetPath.length - 1; ++i) {
-        currentNode = currentNode.subDeductions[targetPath[i]];
-      }
-      currentNode.subDeductions[targetPath[targetPath.length - 1]] = {
-        id: deductionId,
-        description: description,
-        points: points,
-        defaultFeedback: defaultFeedback,
-        subDeductions: subDeductions
-      };
+      let currentNode = deductionIdToItemMap.get(deductionId);
+      if (!currentNode) return;
+      currentNode.description = description;
+      currentNode.points = points;
+      currentNode.defaultFeedback = defaultFeedback;
 
       setAllData({
         ...allData,
-        deductionItemTree: newDeductionItemTree
+        deductionItemTree: allData.deductionItemTree
       });
     } else if (!deductionId && parentPath) {
       // 新規追加モード
