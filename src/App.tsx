@@ -484,11 +484,22 @@ function App() {
       if (!currentNode) return;
       currentNode.description = description;
       currentNode.points = points;
+
+      let previousDefaultFeedback = currentNode.defaultFeedback;
       currentNode.defaultFeedback = defaultFeedback;
 
+      // 編集対象の減点項目をすでに登録している学生データの中で、
+      // デフォルトからカスタマイズされていない学生の講評を更新する
+      const newStudents = allData.studentList.map(student => {
+        const registeredDeduction = student.registeredDeductionList.find(regDeduction => regDeduction.deductionId === deductionId);
+        if (registeredDeduction && registeredDeduction.feedback === previousDefaultFeedback) {
+          // registeredDeductionListの中で、deductionIdが一致するものを更新
+          return { ...student, registeredDeductionList: student.registeredDeductionList.map(regDeduction => regDeduction.deductionId === deductionId ? { ...regDeduction, feedback: defaultFeedback } : regDeduction) };
+        }
+        return student;
+      });
       setAllData({
-        ...allData,
-        deductionItemTree: allData.deductionItemTree
+        ...allData
       });
     } else if (!deductionId && parentPath) {
       // 新規追加モード
