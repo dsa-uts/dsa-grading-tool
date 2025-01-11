@@ -476,7 +476,7 @@ function App() {
         description: description,
         points: points,
         defaultFeedback: defaultFeedback,
-        subDeductions: []
+        subDeductions: subDeductions
       };
 
       setAllData({
