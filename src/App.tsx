@@ -430,7 +430,23 @@ function App() {
   // 減点項目の削除
   const handleDeleteDeduction = (deductionId: string) => {
     const targetPath = deductionIdToPathMap.get(deductionId);
-    console.log('targetPath', targetPath);
+
+    if (targetPath && targetPath.length === 0) {
+      // rootの場合は、deductionItemTreeを初期化する
+      console.log('rootの場合は、deductionItemTreeを初期化する');
+      setAllData({
+        ...allData,
+        deductionItemTree: {
+          id: 'root',
+          description: 'チェックリスト',
+          points: 100,
+          defaultFeedback: '採点ができない',
+          subDeductions: []
+        }
+      });
+      return;
+    }
+
     if (!targetPath) return;
 
     // path = [0, 1, 2] の場合、
