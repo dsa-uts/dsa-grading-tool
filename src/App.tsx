@@ -313,7 +313,7 @@ function App() {
 
       // rootの場合はpath.length - 1が-1になるが、その場合は0とする。
       const indent = '    '.repeat(Math.max(0, path.length - 1));
-      feedback += `${indent}・${regDeduction.feedback}(-${deductionItem.points}points)\n`;
+      feedback += `${indent}・${regDeduction.feedback}(${-deductionItem.points}points)\n`;
     }
 
     // 自由記述フィードバックの追加
@@ -869,7 +869,7 @@ function App() {
                       width: '600px'
                     }}
                   >
-                    {regDeduction.feedback} (-{deductionItem.points} points)
+                    {regDeduction.feedback} ({-deductionItem.points} points)
                   </Typography>
                 </Box>
               ) : (
@@ -1376,7 +1376,7 @@ function App() {
             multiline
             rows={4}
             value={editingFeedback?.feedback || ''}
-            onChange={(e) => setEditingFeedback(prev => 
+            onChange={(e) => setEditingFeedback(prev =>
               prev ? {...prev, feedback: e.target.value} : null
             )}
             fullWidth
