@@ -986,7 +986,7 @@ function App() {
 
         {/* インポート関連のボタングループ */}
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Tooltip title="名簿とは、1列目に学籍番号、2列目に名前が記載されたテーブルを指します" arrow>
+          <Tooltip title="名簿とは、1列目に学籍番号、2列目に名前が記載されたテーブルを指します (ヘッダー行無し)" arrow>
             <Button
               variant="contained"
               component="label"
