@@ -914,7 +914,7 @@ function App() {
             DSA Grading Tool
           </Typography>
           <Box sx={{ mb: 2 }}>
-            <a href="https://github.com/takoyaki65/dsa-grading-tool"
+            <a href="https://github.com/dsa-uts/dsa-grading-tool"
               target="_blank"
               rel="noopener noreferrer"
             >
