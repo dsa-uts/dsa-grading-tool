@@ -1,7 +1,7 @@
 {
   "name": "dsa-grading-tool",
   "version": "0.1.0",
-  "homepage": "https://takoyaki65.github.io/dsa-grading-tool",
+  "homepage": "https://dsa-uts.github.io/dsa-grading-tool",
   "private": true,
   "dependencies": {
     "@emotion/react": "^11.13.5",
@@ -49,6 +49,6 @@
     ]
   },
   "devDependencies": {
-    "gh-pages": "^6.2.0"
+    "gh-pages": "^6.3.0"
   }
 }
